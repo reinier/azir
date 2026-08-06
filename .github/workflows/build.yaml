@@ -1,0 +1,70 @@
+name: Build Azir
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "0 4 * * *"   # daily: pick up new Silverblue base images
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: azir
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull base image (retried — quay CDN is flaky)
+        run: |
+          img=quay.io/fedora-ostree-desktops/silverblue:44
+          for i in 1 2 3 4 5; do
+            if podman pull "$img"; then exit 0; fi
+            echo "::warning::base pull attempt $i failed; retrying"
+            sleep $((i * 15))
+          done
+          echo "::error::base pull failed after 5 attempts"
+          exit 1
+
+      - name: Build image
+        run: podman build --platform=linux/amd64 -f Containerfile -t "${IMAGE_NAME}:latest" .
+
+      - name: Lint
+        run: podman run --rm --entrypoint bootc "${IMAGE_NAME}:latest" container lint
+
+      - name: Push (signed with SIGNING_SECRET when available)
+        if: github.event_name != 'pull_request'
+        env:
+          SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          podman tag "${IMAGE_NAME}:latest" "${REGISTRY}/${IMAGE_NAME}:latest"
+
+          sign_args=()
+          if [ -n "${SIGNING_SECRET}" ]; then
+            key_file="$(mktemp)"
+            printf '%s' "${SIGNING_SECRET}" > "${key_file}"
+            trap 'rm -f "${key_file}"' EXIT
+            sudo mkdir -p /etc/containers/registries.d
+            printf 'docker:\n  %s:\n    use-sigstore-attachments: true\n' "${REGISTRY}" \
+              | sudo tee /etc/containers/registries.d/azir.yaml >/dev/null
+            sign_args=(--sign-passphrase-file=/dev/null "--sign-by-sigstore-private-key=${key_file}")
+          else
+            echo "::warning::SIGNING_SECRET not set — pushing UNSIGNED. Azir bakes a sigstoreSigned policy, so 'bootc upgrade' (once on Azir) will REJECT this image until the secret (same key as Steen/Tashikk) is configured."
+          fi
+
+          podman push "${sign_args[@]}" "${REGISTRY}/${IMAGE_NAME}:latest"
