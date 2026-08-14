@@ -8,7 +8,10 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 4 * * *"   # daily: pick up new Silverblue base images
+    # Daily 04:00 UTC — staggered after Steen (02:00) and Tashikk (03:00) so the three
+    # don't hit quay/GHCR at once. Picks up Silverblue base + Fedora security updates +
+    # the avengemedia DMS COPR moving.
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 concurrency:
