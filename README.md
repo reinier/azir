@@ -27,8 +27,8 @@ At GDM, use the session picker (gear icon) to choose **Niri** or **GNOME**.
 On top of everything Silverblue already provides (GNOME, GDM, GNOME Software, PipeWire,
 printing, firmware updates, keyring):
 
-- **A second desktop** — niri + DankMaterialShell, with the kitty terminal, xwayland-satellite
-  for X11 apps, and kanshi + wdisplays for multi-monitor.
+- **A second desktop** — niri + DankMaterialShell, with the kitty terminal and
+  xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
 - **Browser** — Chromium with full media codecs (Firefox stays too).
 - **Apps** — 1Password (+ CLI), Synology Drive, Tailscale.
 - **Input** — keyd for tap-hold key remaps.
