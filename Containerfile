@@ -166,7 +166,7 @@ RUN dnf5 -y install distrobox \
 # Guard for the whole app layer.
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
-           fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git starship yazi \
+           fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core starship yazi \
            synology-drive-noextra tailscale distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
