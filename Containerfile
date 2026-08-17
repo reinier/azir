@@ -28,18 +28,18 @@ FROM quay.io/fedora-ostree-desktops/silverblue:44
 # don't come along (DMS provides bar/launcher/lock; GNOME provides the rest). niri's wanted
 # recommends (gnome-keyring, wireplumber, portals) are already present from Silverblue.
 # niri has NO built-in Xwayland, so xwayland-satellite drives the base's Xwayland server.
-# kitty is the terminal. No kanshi/wdisplays: unlike Noctalia (Tashikk), DMS IS the display
-# manager — its settings panel arranges outputs and `dms ipc outputs cycleProfile` (Mod+P)
-# switches profiles, so the external display tools would be redundant. brightnessctl/playerctl
-# back DMS's brightness/media on Silverblue (Steen got them from its Sway base; Silverblue
-# doesn't ship them, so name them here).
+# kitty is the terminal. Nothing else in this line: DMS owns the desktop's system integration
+# NATIVELY (per its docs, only Quickshell is required) — display arrangement + profiles, media
+# via Quickshell's MPRIS service, and brightness via its Go backend. So no kanshi/wdisplays
+# (display, Noctalia-only) and no brightnessctl/playerctl (DMS's doctor lists neither as a
+# dependency — they were Noctalia-era carryover, not DMS needs).
 #
 # DMS + quickshell + dms-cli as a MATCHED PAIR from upstream's *stable* COPRs — Fedora's DMS
 # 1.4.4 / quickshell 0.2.1 are too old for DMS 1.5.x. matugen (DMS theming) from Fedora.
 # DMS is spawned from niri in the dotfiles (NOT --global enabled), so it stays niri-only.
 COPY files/avengemedia-dms.repo files/avengemedia-danklinux.repo /etc/yum.repos.d/
 RUN dnf5 -y install --setopt=install_weak_deps=False \
-      niri kitty xwayland-satellite brightnessctl playerctl \
+      niri kitty xwayland-satellite \
  && dnf5 -y install dms matugen \
  && rm -f /etc/yum.repos.d/avengemedia-dms.repo \
           /etc/yum.repos.d/avengemedia-danklinux.repo \
