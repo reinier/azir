@@ -28,7 +28,8 @@ stanza. Most items are "ported from X"; this backlog is short.
 
 1Password (+CLI, /opt relocation, sysusers GIDs, ptrace), Synology Drive, Chromium+codecs,
 keyd (source build), Tailscale, CLI toolkit (Fedora + Terra), Nerd Font, distrobox, Flathub
-remote, kanshi + wdisplays (display mgmt), and the manual-update timer masking.
+remote, and the manual-update timer masking. (Displays are DMS's job — no kanshi/wdisplays,
+unlike Tashikk's Noctalia.)
 
 ## Deliberately NOT here (Silverblue provides it, or DMS does)
 

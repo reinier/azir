@@ -33,7 +33,8 @@ sudo bootc switch ghcr.io/reinier/azir:latest && sudo systemctl reboot
 
 ## D. Displays (niri session)
 
-- [ ] `wdisplays` arranges; niri `output {}` blocks persist; kanshi dock/undock.
+- [ ] DMS manages displays: its settings panel arranges outputs; `dms ipc outputs
+      cycleProfile` (Mod+P) switches profiles. (No kanshi/wdisplays — DMS owns this.)
 
 ## E. Updates + trust
 
