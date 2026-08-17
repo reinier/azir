@@ -20,7 +20,7 @@ sudo bootc switch ghcr.io/reinier/azir:latest
 sudo systemctl reboot
 ```
 
-At GDM, use the session picker (gear icon) to choose **Niri** or **GNOME**.
+Important: you should have a Niri config ready where DMS is launched from config. My personal dotfiles take care of this and it's not build into this Azir image.
 
 ## What you get
 
