@@ -121,8 +121,12 @@ COPY files/1password-opt.conf /usr/lib/tmpfiles.d/1password-opt.conf
 COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 
 # --- CLI toolkit ---
-# git is explicit (chezmoi bootstrap). lazygit is NOT baked — apps distrobox (dotfiles).
-RUN dnf5 -y install fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git \
+# git-core (NOT the full `git` meta-package): the base already ships git-core, and chezmoi/
+# lazygit only need the git binary. Naming full `git` here dragged in the whole Perl tree
+# (~63 pkgs: perl-interpreter + perl-Git + modules, for git-svn/send-email/gitk) — nothing on
+# Azir uses Perl. Requesting git-core is a no-op on the base yet documents the dependency
+# without the Perl bloat. lazygit is NOT baked — apps distrobox (dotfiles).
+RUN dnf5 -y install fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 RUN dnf5 -y install starship yazi \
