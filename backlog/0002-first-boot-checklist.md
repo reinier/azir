@@ -19,7 +19,7 @@ sudo bootc switch ghcr.io/reinier/azir:latest && sudo systemctl reboot
 - [ ] **Niri** session logs in → the dotfiles' `spawn-at-startup` brings up **DMS** (bar,
       launcher, dank-lader, notifications). `niri msg version` responds; `dms ipc` works.
 - [ ] **X11 apps run** (`pgrep -af xwayland-satellite`); **screencast** works (portal-gnome).
-- [ ] kitty + Nerd Font glyphs render.
+- [ ] Ghostty + Nerd Font glyphs render.
 
 ## B. Apps ported from Steen/Tashikk (re-verify on this base)
 

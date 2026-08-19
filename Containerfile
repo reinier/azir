@@ -28,7 +28,8 @@ FROM quay.io/fedora-ostree-desktops/silverblue:44
 # don't come along (DMS provides bar/launcher/lock; GNOME provides the rest). niri's wanted
 # recommends (gnome-keyring, wireplumber, portals) are already present from Silverblue.
 # niri has NO built-in Xwayland, so xwayland-satellite drives the base's Xwayland server.
-# kitty is the terminal. Nothing else in this line: DMS owns the desktop's system integration
+# ghostty is the terminal — installed later from Terra (below), not here: Fedora doesn't
+# package it. Nothing else in this line: DMS owns the desktop's system integration
 # NATIVELY (per its docs, only Quickshell is required) — display arrangement + profiles, media
 # via Quickshell's MPRIS service, and brightness via its Go backend. So no kanshi/wdisplays
 # (display, Noctalia-only) and no brightnessctl/playerctl (DMS's doctor lists neither as a
@@ -39,7 +40,7 @@ FROM quay.io/fedora-ostree-desktops/silverblue:44
 # DMS is spawned from niri in the dotfiles (NOT --global enabled), so it stays niri-only.
 COPY files/avengemedia-dms.repo files/avengemedia-danklinux.repo /etc/yum.repos.d/
 RUN dnf5 -y install --setopt=install_weak_deps=False \
-      niri kitty xwayland-satellite \
+      niri xwayland-satellite \
  && dnf5 -y install dms matugen \
  && rm -f /etc/yum.repos.d/avengemedia-dms.repo \
           /etc/yum.repos.d/avengemedia-danklinux.repo \
@@ -50,7 +51,7 @@ RUN dnf5 -y install --setopt=install_weak_deps=False \
 # quickshell — it only resolves to the COPR build because that repo is enabled and dnf takes
 # the highest version. A silently mismatched quickshell crashed the shell on Steen once.
 RUN set -e; \
-    rpm -q niri kitty xwayland-satellite dms dms-cli quickshell matugen >/dev/null; \
+    rpm -q niri xwayland-satellite dms dms-cli quickshell matugen >/dev/null; \
     ! rpm -q DankMaterialShell >/dev/null 2>&1 \
       || { echo "ERROR: Fedora's DankMaterialShell is installed alongside COPR dms" >&2; exit 1; }; \
     command -v niri >/dev/null || { echo "ERROR: niri binary missing" >&2; exit 1; }; \
@@ -129,7 +130,9 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 RUN dnf5 -y install fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
-RUN dnf5 -y install starship yazi \
+# ghostty here too, alongside starship/yazi: none of the three are packaged by Fedora.
+# ghostty is niri's terminal (see the niri/DMS section above).
+RUN dnf5 -y install starship yazi ghostty \
  && rm -f /etc/yum.repos.d/terra.repo \
  && dnf5 clean all
 
@@ -166,7 +169,7 @@ RUN dnf5 -y install distrobox \
 # Guard for the whole app layer.
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
-           fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core starship yazi \
+           fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core starship yazi ghostty \
            synology-drive-noextra tailscale distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
