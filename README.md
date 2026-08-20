@@ -29,7 +29,7 @@ printing, firmware updates, keyring):
 
 - **A second desktop** — niri + DankMaterialShell, with the Ghostty terminal and
   xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
-- **Browser** — Chromium with full media codecs (Firefox stays too).
+- **Browser** — Chromium with full media codecs (Firefox is stripped — reinstall as a Flatpak if you want it back).
 - **Apps** — 1Password (+ CLI), Synology Drive, Tailscale.
 - **Input** — keyd for tap-hold key remaps.
 - **Terminal toolkit** — fish, starship, eza, bat, yazi; distrobox for ad-hoc tooling.

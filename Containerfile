@@ -173,6 +173,52 @@ RUN mkdir -p /etc/flatpak/remotes.d \
 RUN dnf5 -y install distrobox \
  && dnf5 clean all
 
+# --- Lean out: strip Silverblue defaults Azir doesn't use ---
+# First subtractive step in an otherwise additive image — everything here was checked
+# against `dnf5 repoquery --installed --leaves` on real hardware (azir-beryl), not
+# guessed. dnf5 remove also drops now-orphaned deps of these automatically (e.g.
+# ptyxis's vte291), so the build log will show a larger transaction than this list.
+#   firefox, firefox-langpacks — native Chromium (+ H.264) is the only browser Azir
+#     wants baked in; reinstall as a Flatpak if Firefox is ever needed again.
+#   gnome-tour, gnome-user-docs, yelp — first-run OOBE tour + GNOME's help browser and
+#     its docs; pure onboarding/reference, no functional loss.
+#   ptyxis — Ghostty is the terminal now (see the niri/DMS section above).
+#   toolbox — redundant with distrobox, which Azir standardizes on.
+#   rpmfusion-free-release — this image's own rpmfusion repo file is deleted right
+#     after use, earlier in this file (Chromium/libavcodec-freeworld); the release
+#     package itself is inert rpmdb bookkeeping once that repo is gone.
+#   fedora-third-party — the "enable third-party repos" prompt; repos are managed
+#     explicitly in this Containerfile, not interactively.
+#   open-vm-tools-desktop, virtualbox-guest-additions, qemu-guest-agent,
+#     hyperv-daemons — hypervisor guest-integration tools; Azir targets real hardware.
+#   b43-fwcutter, b43-openfwwf, iwlegacy-firmware — firmware for wifi chips
+#     discontinued before ~2010; real wifi stays covered by iwlwifi-mvm/-dvm.
+#   bluez-cups — Bluetooth printing, essentially unused.
+#   gamemode — game-performance daemon; no game launchers on Azir.
+# Deliberately NOT stripped, despite being leaves too: VPN protocol plugins beyond
+# Tailscale, realmd/sssd-kcm (domain join), mobile broadband, SMB/NFS + gvfs backends,
+# printer-brand drivers, CJK ibus engines, brltty, hfsplus-tools, orca, and
+# gnome-initial-setup — all either in active use or judged not worth the risk.
+RUN dnf5 -y remove \
+      firefox firefox-langpacks gnome-tour gnome-user-docs yelp ptyxis toolbox \
+      rpmfusion-free-release fedora-third-party \
+      open-vm-tools-desktop virtualbox-guest-additions qemu-guest-agent hyperv-daemons \
+      b43-fwcutter b43-openfwwf iwlegacy-firmware bluez-cups gamemode \
+ && dnf5 clean all
+
+# Guard: confirm the stripped packages are actually gone and GNOME/GDM survived.
+RUN set -e; \
+    for pkg in firefox firefox-langpacks gnome-tour gnome-user-docs yelp ptyxis toolbox \
+               rpmfusion-free-release fedora-third-party open-vm-tools-desktop \
+               virtualbox-guest-additions qemu-guest-agent hyperv-daemons \
+               b43-fwcutter b43-openfwwf iwlegacy-firmware bluez-cups gamemode; do \
+      ! rpm -q "$pkg" >/dev/null 2>&1 || { echo "ERROR: $pkg still installed after strip" >&2; exit 1; }; \
+    done; \
+    rpm -q gnome-shell gdm xdg-desktop-portal-gnome gnome-keyring \
+           pipewire wireplumber NetworkManager >/dev/null \
+      || { echo "ERROR: the strip disturbed GNOME/plumbing (should only remove the named leaves)" >&2; exit 1; }; \
+    echo "lean-out OK: 17 packages stripped, GNOME/GDM intact"
+
 # Guard for the whole app layer.
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
