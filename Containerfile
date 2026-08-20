@@ -127,7 +127,14 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # (~63 pkgs: perl-interpreter + perl-Git + modules, for git-svn/send-email/gitk) — nothing on
 # Azir uses Perl. Requesting git-core is a no-op on the base yet documents the dependency
 # without the Perl bloat. lazygit is NOT baked — apps distrobox (dotfiles).
+#
+# wl-clipboard: the dotfiles' own dank-lader binds already shell out to `wl-copy` (copy
+# computer name, date snippets, …) — it was a silent gap, not an addition.
+# ddcutil: DMS's own `dms doctor` checks for I2C/DDC support for external-monitor
+# brightness control; without it that DMS feature can never activate.
+# fastfetch, btop: plain CLI utilities Fedora already packages, no COPR/Terra needed.
 RUN dnf5 -y install fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
+      wl-clipboard ddcutil fastfetch btop \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # ghostty here too, alongside starship/yazi: none of the three are packaged by Fedora.
@@ -169,7 +176,8 @@ RUN dnf5 -y install distrobox \
 # Guard for the whole app layer.
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
-           fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core starship yazi ghostty \
+           fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
+           wl-clipboard ddcutil fastfetch btop starship yazi ghostty \
            synology-drive-noextra tailscale distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
