@@ -1,6 +1,8 @@
 # Signed update stream
 
-- **Status:** in-progress (policy baked; needs `SIGNING_SECRET` on the azir repo)
+- **Status:** done — `SIGNING_SECRET` confirmed set on `reinier/azir` (added
+  2026-08-06); CI runs since then show `--sign-by-sigstore-private-key` +
+  `Storing signatures`, not the unsigned fallback.
 - **Created:** 2026-08-06
 - **Related:** Steen `0001`, Tashikk `0001` (same machinery).
 

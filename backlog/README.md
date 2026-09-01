@@ -19,10 +19,15 @@ stanza. Most items are "ported from X"; this backlog is short.
 ## Items
 
 0. [0000-base-and-architecture.md](0000-base-and-architecture.md) — decision record.
-1. [0001-signing.md](0001-signing.md) — signed update stream (shared key; needs
-   `SIGNING_SECRET` on the azir repo).
+1. [0001-signing.md](0001-signing.md) — **done.** Signed update stream (shared
+   key); `SIGNING_SECRET` confirmed set, CI signing since 2026-08-06.
 2. [0002-first-boot-checklist.md](0002-first-boot-checklist.md) — living hardware/boot
    verification.
+3. [0003-3fg-drag-shim.md](0003-3fg-drag-shim.md) — open, blocked on
+   `dotfiles-azir` `0007`. Bake
+   [enable-3fg-drag](https://github.com/joaodriessen/enable-3fg-drag)'s
+   `LD_PRELOAD` libinput shim into the image (new build stage, mirrors `keyd`)
+   so `dotfiles-azir` `0008` has something to point `/etc/ld.so.preload` at.
 
 ## Ported wholesale (see Steen / Tashikk for reasoning)
 
