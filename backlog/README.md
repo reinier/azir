@@ -29,6 +29,16 @@ stanza. Most items are "ported from X"; this backlog is short.
    `LD_PRELOAD` libinput shim into the image (new build stage, mirrors `keyd`)
    so `dotfiles-azir` `0008` has something to point `/etc/ld.so.preload` at.
 
+## Deferred: rebuild `FROM roshar`
+
+[Roshar](https://github.com/reinier/roshar) (2026-09-02) is a new, separate repo: the bare
+niri+DMS core of this Containerfile (lines 26-81) plus a small broadly-useful app tier,
+split out so a working niri+DMS desktop doesn't require Azir's full personal layer. The
+eventual goal is Azir itself starting `FROM ghcr.io/reinier/roshar:latest` instead of stock
+Silverblue directly, and dropping everything Roshar now covers — deliberately **not** done
+yet. Roshar ships and proves itself standalone first; this becomes a numbered item once
+that's picked up.
+
 ## Ported wholesale (see Steen / Tashikk for reasoning)
 
 1Password (+CLI, /opt relocation, sysusers GIDs, ptrace), Synology Drive, Chromium+codecs,
