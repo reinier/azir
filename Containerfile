@@ -121,6 +121,44 @@ RUN rpm --import https://downloads.1password.com/linux/keys/1password.asc \
 COPY files/1password-opt.conf /usr/lib/tmpfiles.d/1password-opt.conf
 COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 
+# --- Proton Pass: desktop app, official direct download (no repo/GPG — see below) ---
+# proton.me doesn't offer a signed repo for Pass the way it does for ProtonVPN/Mail Bridge —
+# just a versioned RPM + SHA512 checksum published at
+# https://proton.me/download/PassDesktop/linux/x64/version.json. Checked directly (not just
+# read about): Flathub has no listing at all; the Snap Store one explicitly disclaims being
+# Proton's own work ("not verified, affiliated with, or supported by Proton AG") despite its
+# publisher account showing a verified badge. This RPM download genuinely is the official
+# channel — but `rpm --checksig` on it reports `Signature: (none)`, so the SHA512 checksum
+# (verified against the same domain as the download, not an independent key) is the only
+# integrity check available, unlike 1Password's GPG-signed repo above. Pin version + checksum
+# explicitly here, same posture as NERD_FONT_VERSION below — a version bump means re-verifying
+# by hand against version.json, not blindly fetching whatever's newest.
+#
+# No /opt relocation needed (unlike 1Password/Synology) — this RPM installs cleanly under
+# /usr/lib/proton-pass + /usr/bin, not /opt. No setuid dance either: it ships a chrome-sandbox
+# helper like 1Password's, but with no postinstall scriptlet and plain 0755 permissions —
+# apparently relying on unprivileged user namespaces (which Silverblue supports by default)
+# rather than a setuid-root helper. `dnf5 install <local rpm>` (not Proton's own documented
+# `rpm -i --force`) so dependencies resolve against Fedora's repos properly.
+ARG PROTON_PASS_VERSION=1.39.1
+ARG PROTON_PASS_SHA512=3564444f06088afb0992f0b7488e70249ab47799d276c2c5be1db6ba2545b0ace320b3fb65272e415ef8667d4a5207527d8f61ec59a80fe4ad3e81905df9da99
+RUN curl -fsSL -o /tmp/proton-pass.rpm \
+      "https://proton.me/download/pass/linux/proton-pass-${PROTON_PASS_VERSION}-1.x86_64.rpm" \
+ && echo "${PROTON_PASS_SHA512}  /tmp/proton-pass.rpm" | sha512sum -c - \
+ && dnf5 -y install /tmp/proton-pass.rpm \
+ && rm -f /tmp/proton-pass.rpm \
+ && dnf5 clean all
+
+# Guard: binary present and the installed version actually matches the pin (catches drift
+# between the curl URL and what dnf5 resolved/landed).
+RUN set -e; \
+    rpm -q proton-pass >/dev/null || { echo "ERROR: proton-pass not installed" >&2; exit 1; }; \
+    command -v proton-pass >/dev/null || { echo "ERROR: proton-pass binary missing" >&2; exit 1; }; \
+    installed_version="$(rpm -q --qf '%{VERSION}' proton-pass)"; \
+    [ "$installed_version" = "$PROTON_PASS_VERSION" ] \
+      || { echo "ERROR: installed proton-pass $installed_version != pinned $PROTON_PASS_VERSION" >&2; exit 1; }; \
+    echo "Proton Pass $installed_version installed (checksum-verified, unsigned upstream)"
+
 # --- CLI toolkit ---
 # git-core (NOT the full `git` meta-package): the base already ships git-core, and chezmoi/
 # lazygit only need the git binary. Naming full `git` here dragged in the whole Perl tree
@@ -221,7 +259,7 @@ RUN set -e; \
 
 # Guard for the whole app layer.
 RUN set -e; \
-    rpm -q chromium libavcodec-freeworld 1password 1password-cli \
+    rpm -q chromium libavcodec-freeworld 1password 1password-cli proton-pass \
            fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
            wl-clipboard ddcutil fastfetch btop starship yazi ghostty \
            synology-drive-noextra tailscale distrobox >/dev/null; \
