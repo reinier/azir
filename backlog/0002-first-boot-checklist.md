@@ -24,7 +24,7 @@ sudo bootc switch ghcr.io/reinier/azir:latest && sudo systemctl reboot
 ## B. Apps ported from Steen/Tashikk (re-verify on this base)
 
 - [ ] 1Password unlocks, browser integration, `op`, 1PUX export dialog (gid≥1000 + ptrace).
-- [ ] Chromium plays H.264; Synology syncs; `tailscale up`; keyd tap-hold; CLI toolkit +
+- [ ] Chromium plays H.264; `tailscale up`; keyd tap-hold; CLI toolkit +
       `distrobox create`; Flathub present.
 
 ## C. Silverblue plumbing (should be untouched)

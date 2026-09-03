@@ -143,19 +143,6 @@ RUN dnf5 -y install starship yazi ghostty \
  && rm -f /etc/yum.repos.d/terra.repo \
  && dnf5 clean all
 
-# --- Synology Drive ---
-COPY files/synology-drive.repo /etc/yum.repos.d/synology-drive.repo
-RUN opt_link="$(readlink /opt)" \
- && rm /opt && mkdir /opt \
- && dnf5 -y install synology-drive-noextra \
- && rm -f /etc/yum.repos.d/synology-drive.repo \
- && mkdir -p /usr/lib/opt \
- && mv /opt/Synology /usr/lib/opt/Synology \
- && rmdir /opt \
- && ln -s "$opt_link" /opt \
- && dnf5 clean all
-COPY files/synology-drive-opt.conf /usr/lib/tmpfiles.d/synology-drive-opt.conf
-
 # --- keyd artifacts ---
 COPY --from=keyd-build /out/ /
 
@@ -224,11 +211,10 @@ RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
            fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
            wl-clipboard ddcutil fastfetch btop starship yazi ghostty \
-           synology-drive-noextra tailscale distrobox >/dev/null; \
+           tailscale distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
     test -d /usr/lib/opt/1Password || { echo "ERROR: 1Password payload not relocated into /usr" >&2; exit 1; }; \
-    test -d /usr/lib/opt/Synology  || { echo "ERROR: Synology payload not relocated into /usr" >&2; exit 1; }; \
     test -u /usr/lib/opt/1Password/chrome-sandbox || { echo "ERROR: chrome-sandbox lost its setuid bit" >&2; exit 1; }; \
     test -g /usr/lib/opt/1Password/1Password-BrowserSupport || { echo "ERROR: 1Password-BrowserSupport lost its setgid bit" >&2; exit 1; }; \
     test -g /usr/bin/op || { echo "ERROR: op lost its setgid bit" >&2; exit 1; }; \
@@ -242,7 +228,7 @@ RUN set -e; \
     test -f /usr/lib/systemd/system/keyd.service || { echo "ERROR: keyd.service missing — FORCE_SYSTEMD did not take" >&2; exit 1; }; \
     test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing" >&2; exit 1; }; \
     systemctl is-enabled tailscaled.service >/dev/null || { echo "ERROR: tailscaled is not enabled" >&2; exit 1; }; \
-    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), 1password $(rpm -q --qf '%{VERSION}' 1password), synology $(rpm -q --qf '%{VERSION}' synology-drive-noextra), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
+    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), 1password $(rpm -q --qf '%{VERSION}' 1password), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
 
 # --- Update policy: manual only ---
 RUN systemctl mask bootc-fetch-apply-updates.timer rpm-ostreed-automatic.timer \

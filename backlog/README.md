@@ -41,7 +41,7 @@ that's picked up.
 
 ## Ported wholesale (see Steen / Tashikk for reasoning)
 
-1Password (+CLI, /opt relocation, sysusers GIDs, ptrace), Synology Drive, Chromium+codecs,
+1Password (+CLI, /opt relocation, sysusers GIDs, ptrace), Chromium+codecs,
 keyd (source build), Tailscale, CLI toolkit (Fedora + Terra), Nerd Font, distrobox, Flathub
 remote, and the manual-update timer masking. (Displays are DMS's job — no kanshi/wdisplays,
 unlike Tashikk's Noctalia.)
