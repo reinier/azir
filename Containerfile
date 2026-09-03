@@ -95,6 +95,32 @@ RUN dnf5 -y install "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-re
  && rm -f /etc/yum.repos.d/rpmfusion-*.repo \
  && dnf5 clean all
 
+# --- 1Password: desktop app + CLI ---
+# Silverblue is ostree, so /opt is a symlink to /var/opt: relocate the payload into
+# /usr/lib/opt, restore the symlink, tmpfiles recreates /opt/1Password at boot. setuid/setgid
+# baked here; groups via sysusers.d at FIXED GIDs >=1000.
+COPY files/1password.repo /etc/yum.repos.d/1password.repo
+COPY files/1password-sysusers.conf /usr/lib/sysusers.d/1password-azir.conf
+RUN rpm --import https://downloads.1password.com/linux/keys/1password.asc \
+ && systemd-sysusers /usr/lib/sysusers.d/1password-azir.conf \
+ && opt_link="$(readlink /opt)" \
+ && rm /opt && mkdir /opt \
+ && mkdir -p "$(realpath -m /usr/local)" \
+ && dnf5 -y install 1password 1password-cli \
+ && rm -f /etc/yum.repos.d/1password.repo \
+ && mkdir -p /usr/lib/opt \
+ && mv /opt/1Password /usr/lib/opt/1Password \
+ && rmdir /opt \
+ && ln -s "$opt_link" /opt \
+ && chmod 4755 /usr/lib/opt/1Password/chrome-sandbox \
+ && chgrp onepassword /usr/lib/opt/1Password/1Password-BrowserSupport \
+ && chmod 2755 /usr/lib/opt/1Password/1Password-BrowserSupport \
+ && chgrp onepassword-cli /usr/bin/op \
+ && chmod 2755 /usr/bin/op \
+ && dnf5 clean all
+COPY files/1password-opt.conf /usr/lib/tmpfiles.d/1password-opt.conf
+COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
+
 # --- Proton Pass: desktop app, official direct download (no repo/GPG — see below) ---
 # proton.me doesn't offer a signed repo for Pass the way it does for ProtonVPN/Mail Bridge —
 # just a versioned RPM + SHA512 checksum published at
@@ -104,15 +130,13 @@ RUN dnf5 -y install "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-re
 # publisher account showing a verified badge. This RPM download genuinely is the official
 # channel — but `rpm --checksig` on it reports `Signature: (none)`, so the SHA512 checksum
 # (verified against the same domain as the download, not an independent key) is the only
-# integrity check available — a real gap versus a proper GPG-signed repo (this image used to
-# install 1Password that way; removed now that Proton Pass replaces it). Pin version + checksum
+# integrity check available, unlike 1Password's GPG-signed repo above. Pin version + checksum
 # explicitly here, same posture as NERD_FONT_VERSION below — a version bump means re-verifying
 # by hand against version.json, not blindly fetching whatever's newest.
 #
-# No /opt relocation needed here (unlike Synology below) — this RPM installs cleanly under
+# No /opt relocation needed (unlike 1Password/Synology) — this RPM installs cleanly under
 # /usr/lib/proton-pass + /usr/bin, not /opt. No setuid dance either: it ships a chrome-sandbox
-# helper (the same kind of Electron/Chromium sandboxing binary 1Password's needed setuid on),
-# but with no postinstall scriptlet and plain 0755 permissions —
+# helper like 1Password's, but with no postinstall scriptlet and plain 0755 permissions —
 # apparently relying on unprivileged user namespaces (which Silverblue supports by default)
 # rather than a setuid-root helper. `dnf5 install <local rpm>` (not Proton's own documented
 # `rpm -i --force`) so dependencies resolve against Fedora's repos properly.
@@ -235,18 +259,28 @@ RUN set -e; \
 
 # Guard for the whole app layer.
 RUN set -e; \
-    rpm -q chromium libavcodec-freeworld proton-pass \
+    rpm -q chromium libavcodec-freeworld 1password 1password-cli proton-pass \
            fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
            wl-clipboard ddcutil fastfetch btop starship yazi ghostty \
            synology-drive-noextra tailscale distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
+    test -d /usr/lib/opt/1Password || { echo "ERROR: 1Password payload not relocated into /usr" >&2; exit 1; }; \
     test -d /usr/lib/opt/Synology  || { echo "ERROR: Synology payload not relocated into /usr" >&2; exit 1; }; \
+    test -u /usr/lib/opt/1Password/chrome-sandbox || { echo "ERROR: chrome-sandbox lost its setuid bit" >&2; exit 1; }; \
+    test -g /usr/lib/opt/1Password/1Password-BrowserSupport || { echo "ERROR: 1Password-BrowserSupport lost its setgid bit" >&2; exit 1; }; \
+    test -g /usr/bin/op || { echo "ERROR: op lost its setgid bit" >&2; exit 1; }; \
+    test -f /usr/lib/sysusers.d/1password-azir.conf || { echo "ERROR: 1password sysusers drop-in missing" >&2; exit 1; }; \
+    getent group onepassword     | grep -q ':1500:' || { echo "ERROR: onepassword group not at fixed gid 1500 (must be >=1000)" >&2; exit 1; }; \
+    getent group onepassword-cli | grep -q ':1501:' || { echo "ERROR: onepassword-cli group not at fixed gid 1501" >&2; exit 1; }; \
+    [ "$(stat -c %g /usr/lib/opt/1Password/1Password-BrowserSupport)" = 1500 ] || { echo "ERROR: BrowserSupport setgid not onepassword(1500)" >&2; exit 1; }; \
+    [ "$(stat -c %g /usr/bin/op)" = 1501 ] || { echo "ERROR: op setgid not onepassword-cli(1501)" >&2; exit 1; }; \
+    test -f /usr/lib/sysctl.d/60-1password-ptrace.conf || { echo "ERROR: ptrace_scope drop-in missing" >&2; exit 1; }; \
     command -v keyd >/dev/null || { echo "ERROR: keyd binary missing" >&2; exit 1; }; \
     test -f /usr/lib/systemd/system/keyd.service || { echo "ERROR: keyd.service missing — FORCE_SYSTEMD did not take" >&2; exit 1; }; \
     test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing" >&2; exit 1; }; \
     systemctl is-enabled tailscaled.service >/dev/null || { echo "ERROR: tailscaled is not enabled" >&2; exit 1; }; \
-    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), synology $(rpm -q --qf '%{VERSION}' synology-drive-noextra), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
+    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), 1password $(rpm -q --qf '%{VERSION}' 1password), synology $(rpm -q --qf '%{VERSION}' synology-drive-noextra), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
 
 # --- Update policy: manual only ---
 RUN systemctl mask bootc-fetch-apply-updates.timer rpm-ostreed-automatic.timer \
