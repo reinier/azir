@@ -30,9 +30,9 @@ printing, firmware updates, keyring):
 - **A second desktop** — niri + DankMaterialShell, with the Ghostty terminal and
   xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
 - **Browser** — Chromium with full media codecs (Firefox is stripped — reinstall as a Flatpak if you want it back).
-- **Apps** — 1Password (+ CLI), Proton Pass, Synology Drive, Tailscale. Proton Pass installs
-  from proton.me's official RPM download (checksum-verified, pinned version) rather than a
-  signed repo — Proton doesn't offer one for Pass yet, unlike ProtonVPN.
+- **Apps** — Proton Pass, Synology Drive, Tailscale. Proton Pass installs from proton.me's
+  official RPM download (checksum-verified, pinned version) rather than a signed repo —
+  Proton doesn't offer one for Pass yet, unlike ProtonVPN.
 - **Input** — keyd for tap-hold key remaps.
 - **Terminal toolkit** — fish, starship, eza, bat, yazi; distrobox for ad-hoc tooling.
 
