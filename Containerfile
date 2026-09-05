@@ -131,11 +131,16 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # ddcutil: DMS's own `dms doctor` checks for I2C/DDC support for external-monitor
 # brightness control; without it that DMS feature can never activate.
 # fastfetch, btop: plain CLI utilities Fedora already packages, no COPR/Terra needed.
-# No wl-clipboard: the dotfiles' own dank-lader binds and clipboard scripts all shell
-# out to DMS's own `dms cl copy`/`dms cl paste` instead (DMS >= 1.6) — dropped in
-# favor of that rather than carrying a second clipboard tool for the same job.
+# wl-clipboard: NOT actually optional — dms/DankMaterialShell itself has a hard RPM
+# Requires on it (confirmed via `dnf5 --releasever=44 repoquery --requires
+# DankMaterialShell`, and the hard way via a failed CI build after a naive "the
+# dotfiles moved to dms cl, drop it" removal — checked against the wrong Fedora
+# release without the avengemedia COPR enabled, missed this entirely). It's staying
+# explicit here as a documented direct dependency, not because dotfiles scripts use
+# `wl-copy`/`wl-paste` anymore (they don't, see dotfiles-azir) — dnf5 would pull it
+# in transitively via dms regardless of this line.
 RUN dnf5 -y install fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
-      ddcutil fastfetch btop \
+      wl-clipboard ddcutil fastfetch btop \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # ghostty here too, alongside starship/yazi: none of the three are packaged by Fedora.
@@ -211,9 +216,8 @@ RUN set -e; \
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
            fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
-           ddcutil fastfetch btop starship yazi ghostty \
+           wl-clipboard ddcutil fastfetch btop starship yazi ghostty \
            tailscale distrobox >/dev/null; \
-    ! rpm -q wl-clipboard >/dev/null 2>&1 || { echo "ERROR: wl-clipboard is in the image — dropped in favor of dms cl, should no longer be pulled in" >&2; exit 1; }; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
     test -d /usr/lib/opt/1Password || { echo "ERROR: 1Password payload not relocated into /usr" >&2; exit 1; }; \
