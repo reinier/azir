@@ -128,13 +128,14 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # Azir uses Perl. Requesting git-core is a no-op on the base yet documents the dependency
 # without the Perl bloat. lazygit is NOT baked — apps distrobox (dotfiles).
 #
-# wl-clipboard: the dotfiles' own dank-lader binds already shell out to `wl-copy` (copy
-# computer name, date snippets, …) — it was a silent gap, not an addition.
 # ddcutil: DMS's own `dms doctor` checks for I2C/DDC support for external-monitor
 # brightness control; without it that DMS feature can never activate.
 # fastfetch, btop: plain CLI utilities Fedora already packages, no COPR/Terra needed.
+# No wl-clipboard: the dotfiles' own dank-lader binds and clipboard scripts all shell
+# out to DMS's own `dms cl copy`/`dms cl paste` instead (DMS >= 1.6) — dropped in
+# favor of that rather than carrying a second clipboard tool for the same job.
 RUN dnf5 -y install fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
-      wl-clipboard ddcutil fastfetch btop \
+      ddcutil fastfetch btop \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # ghostty here too, alongside starship/yazi: none of the three are packaged by Fedora.
@@ -210,8 +211,9 @@ RUN set -e; \
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
            fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
-           wl-clipboard ddcutil fastfetch btop starship yazi ghostty \
+           ddcutil fastfetch btop starship yazi ghostty \
            tailscale distrobox >/dev/null; \
+    ! rpm -q wl-clipboard >/dev/null 2>&1 || { echo "ERROR: wl-clipboard is in the image — dropped in favor of dms cl, should no longer be pulled in" >&2; exit 1; }; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
     test -d /usr/lib/opt/1Password || { echo "ERROR: 1Password payload not relocated into /usr" >&2; exit 1; }; \
