@@ -1,3 +1,0 @@
-docker:
-  ghcr.io/reinier:
-    use-sigstore-attachments: true

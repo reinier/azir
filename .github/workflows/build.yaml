@@ -8,10 +8,12 @@ on:
     branches:
       - main
   schedule:
-    # Daily 04:00 UTC — staggered after Steen (02:00) and Tashikk (03:00) so the three
-    # don't hit quay/GHCR at once. Picks up Silverblue base + Fedora security updates +
-    # the avengemedia DMS COPR moving.
-    - cron: "0 4 * * *"
+    # Daily 06:00 UTC — staggered after Steen (02:00), Tashikk (03:00), and, since the
+    # FROM switched to ghcr.io/reinier/roshar, after Roshar's own build too (05:00) —
+    # otherwise Azir would rebuild against yesterday's Roshar image every day. Picks up
+    # the Roshar base + Fedora security updates + whatever moved in Roshar's own build
+    # (Silverblue base, the avengemedia DMS COPR, etc.).
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -32,9 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Pull base image (retried — quay CDN is flaky)
+      - name: Pull base image (retried — registry pulls can be flaky)
         run: |
-          img=quay.io/fedora-ostree-desktops/silverblue:44
+          img=ghcr.io/reinier/roshar:latest
           for i in 1 2 3 4 5; do
             if podman pull "$img"; then exit 0; fi
             echo "::warning::base pull attempt $i failed; retrying"
@@ -67,7 +69,7 @@ jobs:
               | sudo tee /etc/containers/registries.d/azir.yaml >/dev/null
             sign_args=(--sign-passphrase-file=/dev/null "--sign-by-sigstore-private-key=${key_file}")
           else
-            echo "::warning::SIGNING_SECRET not set — pushing UNSIGNED. Azir bakes a sigstoreSigned policy, so 'bootc upgrade' (once on Azir) will REJECT this image until the secret (same key as Steen/Tashikk) is configured."
+            echo "::warning::SIGNING_SECRET not set — pushing UNSIGNED. Azir inherits a sigstoreSigned policy from its roshar base, so 'bootc upgrade' (once on Azir) will REJECT this image until the secret (same key as Steen/Tashikk/Roshar) is configured."
           fi
 
           podman push "${sign_args[@]}" "${REGISTRY}/${IMAGE_NAME}:latest"

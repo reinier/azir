@@ -12,6 +12,14 @@ Azir builds **`FROM quay.io/fedora-ostree-desktops/silverblue:44`**, **additive*
 + GDM, add **niri + DankMaterialShell** as an alternative session. It is Tashikk's image with
 the shell swapped from Noctalia to DMS.
 
+**Update (2026-09-07, see `0004`):** the `FROM` line changed to
+**`ghcr.io/reinier/roshar:latest`** — [Roshar](https://github.com/reinier/roshar) extracted
+exactly this niri/DMS-additive core (repo install, provenance guard, additive/session guard,
+a broadly-useful CLI subset, Flathub, distrobox, signing/trust) into its own reusable base
+image, so Azir now inherits it instead of duplicating it. The three differences-from-Tashikk
+below are unchanged in substance — Roshar itself already embodies all three — this section is
+kept for the historical reasoning, not because Azir builds it directly anymore.
+
 ## The three things that differ from Tashikk
 
 1. **DMS from the avengemedia STABLE COPR**, not Fedora. Fedora only has the too-old DMS

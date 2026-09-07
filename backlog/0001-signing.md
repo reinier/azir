@@ -8,10 +8,19 @@
 
 ## What's baked
 
-Azir verifies its own update stream (`ghcr.io/reinier/azir`): a baked `cosign.pub` + a
-`sigstoreSigned` `policy.json` entry (`patch-policy.py`, keyed on the `ghcr.io/reinier`
-namespace, `signedIdentity: matchRepository`) + `files/azir-registries.yaml` for sigstore
-attachment reads. CI signs the `:latest` push when `SIGNING_SECRET` is present.
+Azir verifies its own update stream (`ghcr.io/reinier/azir`): a `cosign.pub` + a
+`sigstoreSigned` `policy.json` entry (`signedIdentity: matchRepository`) + a registries.d file
+for sigstore attachment reads — all keyed on the `ghcr.io/reinier` **namespace**, not just one
+repo. CI signs the `:latest` push when `SIGNING_SECRET` is present.
+
+**Update (2026-09-07, see `0004`):** since Azir now builds `FROM ghcr.io/reinier/roshar:latest`
+(see `0000`), this trust config is **inherited from Roshar's own build**, not baked directly
+by Azir's own Containerfile anymore — `cosign.pub`, `patch-policy.py`, and
+`files/azir-registries.yaml` were deleted from this repo as redundant. The namespace-scoped
+`matchRepository` policy already covers `ghcr.io/reinier/azir` regardless of which layer wrote
+it. Everything below (the shared key, the `SIGNING_SECRET`-on-`reinier/azir` requirement, CI
+push-side signing) is unaffected — this only changes how the *pulling* side of trust gets
+baked into the image, not the *pushing* side.
 
 ## Shared key — one action needed
 

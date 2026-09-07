@@ -10,6 +10,10 @@ at the login screen.
 breaks, `bootc rollback` returns to the previous one in a single step. Every machine runs the
 exact same thing.
 
+Built on **[Roshar](https://github.com/reinier/roshar)** — the bare, generic niri+DMS-on-
+Silverblue base, also independently rebase-able on its own. Azir adds the personal layer on
+top: 1Password, Chromium, keyd, Tailscale, and a few CLI extras.
+
 ## Install
 
 Start from a [Fedora Silverblue](https://fedoraproject.org/atomic-desktops/silverblue/)

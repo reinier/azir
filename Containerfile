@@ -1,15 +1,14 @@
 # Azir — Fedora Silverblue + niri + DankMaterialShell (DMS), GNOME kept.
 #
-# Azir is the DMS counterpart to Tashikk: same ADDITIVE Silverblue base (keep the full
-# GNOME desktop + GDM, add niri as an alternative session), but the shell is DMS instead of
-# Noctalia. So it recombines Tashikk's image skeleton with Steen's DMS-from-COPR stanza.
+# Azir is the personal layer on top of Roshar (github.com/reinier/roshar): the bare,
+# reusable niri+DMS-on-Silverblue core — repo install, quickshell provenance guard, additive
+# session, CLI toolkit subset, Flathub remote, distrobox, signing/trust — all lives there now.
+# This Containerfile only adds what's Azir-specific on top: 1Password, Chromium+codecs, keyd,
+# Tailscale, ghostty/starship/yazi, and the personal CLI remainder Roshar doesn't cover.
 #
-# Two differences from Tashikk worth noting:
-#   - DMS comes from the avengemedia STABLE COPR (Fedora only has the too-old DMS 1.4.4 /
-#     quickshell 0.2.1), with a quickshell provenance guard — NOT a clean Fedora install.
-#   - DMS is NOT `--global` enabled (that would start it in the GNOME session too). The
-#     dotfiles spawn it from niri, so it only runs in the niri session.
-# No wlr-which-key here (unlike Tashikk) — DMS provides dank-lader as its leader menu.
+# DMS is NOT `--global` enabled (inherited decision, unchanged) — the dotfiles spawn it from
+# niri, so it only runs in the niri session, never leaking into GNOME.
+# No wlr-which-key here — DMS provides dank-lader as its leader menu.
 
 # --- keyd: built from source, pinned to an upstream release tag ---
 FROM registry.fedoraproject.org/fedora:44 AS keyd-build
@@ -19,66 +18,29 @@ RUN dnf5 -y install git make gcc kernel-headers \
  && make -C /src PREFIX=/usr \
  && make -C /src PREFIX=/usr DESTDIR=/out FORCE_SYSTEMD=1 install
 
-# Silverblue base — the full GNOME atomic desktop. GNOME stays; GDM stays (it gains a
-# "Niri" session entry once niri is installed below).
-FROM quay.io/fedora-ostree-desktops/silverblue:44
+# Roshar — niri + DMS + quickshell + CLI toolkit subset + Flathub + distrobox + signing/trust,
+# all already baked and guarded there. GNOME + GDM stay (inherited, additive).
+FROM ghcr.io/reinier/roshar:latest
 
-# --- niri + DankMaterialShell session (added alongside GNOME) ---
-# niri Recommends waybar/fuzzel/swaylock/alacritty — install with weak deps OFF so those
-# don't come along (DMS provides bar/launcher/lock; GNOME provides the rest). niri's wanted
-# recommends (gnome-keyring, wireplumber, portals) are already present from Silverblue.
-# niri has NO built-in Xwayland, so xwayland-satellite drives the base's Xwayland server.
-# ghostty is the terminal — installed later from Terra (below), not here: Fedora doesn't
-# package it. Nothing else in this line: DMS owns the desktop's system integration
-# NATIVELY (per its docs, only Quickshell is required) — display arrangement + profiles, media
-# via Quickshell's MPRIS service, and brightness via its Go backend. So no kanshi/wdisplays
-# (display, Noctalia-only) and no brightnessctl/playerctl (DMS's doctor lists neither as a
-# dependency — they were Noctalia-era carryover, not DMS needs).
-#
-# DMS + quickshell + dms-cli as a MATCHED PAIR from upstream's *stable* COPRs — Fedora's DMS
-# 1.4.4 / quickshell 0.2.1 are too old for DMS 1.5.x. matugen (DMS theming) from Fedora.
-# DMS is spawned from niri in the dotfiles (NOT --global enabled), so it stays niri-only.
-COPY files/avengemedia-dms.repo files/avengemedia-danklinux.repo /etc/yum.repos.d/
-RUN dnf5 -y install --setopt=install_weak_deps=False \
-      niri xwayland-satellite \
- && dnf5 -y install dms matugen \
- && rm -f /etc/yum.repos.d/avengemedia-dms.repo \
-          /etc/yum.repos.d/avengemedia-danklinux.repo \
- && dnf5 clean all
-
-# Guard: assert quickshell PROVENANCE, not versions. dms's dependency is the unversioned
-# `(quickshell or quickshell-git)`, so rpm is equally satisfied by Fedora's much older
-# quickshell — it only resolves to the COPR build because that repo is enabled and dnf takes
-# the highest version. A silently mismatched quickshell crashed the shell on Steen once.
+# Guard: confirm the inherited niri/DMS/quickshell core actually arrived intact before this
+# layer starts diverging from it (removing ptyxis, etc., below). Re-checks provenance rather
+# than trusting Roshar's own build-time guard blindly — that guard ran in a different build,
+# this one runs against what actually got pulled as FROM.
 RUN set -e; \
-    rpm -q niri xwayland-satellite dms dms-cli quickshell matugen >/dev/null; \
+    rpm -q niri xwayland-satellite ddcutil dms dms-cli quickshell matugen ptyxis >/dev/null; \
     ! rpm -q DankMaterialShell >/dev/null 2>&1 \
       || { echo "ERROR: Fedora's DankMaterialShell is installed alongside COPR dms" >&2; exit 1; }; \
-    command -v niri >/dev/null || { echo "ERROR: niri binary missing" >&2; exit 1; }; \
-    command -v dms  >/dev/null || { echo "ERROR: dms CLI missing" >&2; exit 1; }; \
     qs_repo="$(dnf5 repoquery --installed --qf '%{from_repo}' quickshell | head -1)"; \
     case "$qs_repo" in \
       *avengemedia*) ;; \
       *) echo "ERROR: quickshell came from '${qs_repo}', not the avengemedia COPR." >&2; exit 1;; \
     esac; \
-    echo "desktop core: niri $(rpm -q --qf '%{VERSION}' niri), dms $(rpm -q --qf '%{VERSION}' dms), quickshell $(rpm -q --qf '%{VERSION}' quickshell) [${qs_repo}]"
-
-# SwayNotificationCenter can leak in as a weak dep of the dms/niri COPR stack (dms is
-# installed weak-deps-ON for matugen/cava); DMS provides notifications, so purge it.
-RUN rpm -q SwayNotificationCenter >/dev/null 2>&1 && dnf5 -y remove SwayNotificationCenter || true \
- && dnf5 clean all
-
-# Additive guard: the niri/DMS session landed AND GNOME/GDM/plumbing survived (nothing should
-# be removed on an additive build). Also assert niri ships its GDM session file so the "Niri"
-# entry appears at login.
-RUN set -e; \
     test -f /usr/share/wayland-sessions/niri.desktop \
-      || { echo "ERROR: niri GDM session file missing — GDM won't offer a Niri session; bake one" >&2; exit 1; }; \
+      || { echo "ERROR: niri GDM session file missing" >&2; exit 1; }; \
     rpm -q gnome-shell gdm xdg-desktop-portal-gnome gnome-keyring \
            pipewire wireplumber NetworkManager >/dev/null \
-      || { echo "ERROR: GNOME/plumbing was disturbed by the niri layer (should be additive)" >&2; exit 1; }; \
-    ! rpm -q sddm >/dev/null 2>&1 || { echo "ERROR: sddm present — GDM should be the only DM" >&2; exit 1; }; \
-    echo "session OK: niri + dms added; GNOME/GDM intact"
+      || { echo "ERROR: GNOME/plumbing missing from the roshar base" >&2; exit 1; }; \
+    echo "inherited from roshar: niri $(rpm -q --qf '%{VERSION}' niri), dms $(rpm -q --qf '%{VERSION}' dms), quickshell $(rpm -q --qf '%{VERSION}' quickshell) [${qs_repo}]"
 
 # --- JetBrainsMono Nerd Font ---
 ARG NERD_FONT_VERSION=v3.4.0
@@ -121,30 +83,17 @@ RUN rpm --import https://downloads.1password.com/linux/keys/1password.asc \
 COPY files/1password-opt.conf /usr/lib/tmpfiles.d/1password-opt.conf
 COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 
-# --- CLI toolkit ---
-# git-core (NOT the full `git` meta-package): the base already ships git-core, and chezmoi/
-# lazygit only need the git binary. Naming full `git` here dragged in the whole Perl tree
-# (~63 pkgs: perl-interpreter + perl-Git + modules, for git-svn/send-email/gitk) — nothing on
-# Azir uses Perl. Requesting git-core is a no-op on the base yet documents the dependency
-# without the Perl bloat. lazygit is NOT baked — apps distrobox (dotfiles).
-#
-# ddcutil: DMS's own `dms doctor` checks for I2C/DDC support for external-monitor
-# brightness control; without it that DMS feature can never activate.
-# fastfetch, btop: plain CLI utilities Fedora already packages, no COPR/Terra needed.
-# wl-clipboard: NOT actually optional — dms/DankMaterialShell itself has a hard RPM
-# Requires on it (confirmed via `dnf5 --releasever=44 repoquery --requires
-# DankMaterialShell`, and the hard way via a failed CI build after a naive "the
-# dotfiles moved to dms cl, drop it" removal — checked against the wrong Fedora
-# release without the avengemedia COPR enabled, missed this entirely). It's staying
-# explicit here as a documented direct dependency, not because dotfiles scripts use
-# `wl-copy`/`wl-paste` anymore (they don't, see dotfiles-azir) — dnf5 would pull it
-# in transitively via dms regardless of this line.
-RUN dnf5 -y install fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
-      wl-clipboard ddcutil fastfetch btop \
+# --- CLI toolkit (Azir-only remainder) ---
+# Roshar's own base already covers ripgrep/fzf/bat/eza/fastfetch/btop/git-core/wl-clipboard/
+# chezmoi (its CLI toolkit) and ddcutil (bundled into its niri/dms install line). What's left
+# is tied to Azir's own shell/editor/terminal choices, not broadly useful enough for Roshar:
+# fish (the shell), xdg-terminal-exec (default-terminal resolution), jq/zip/fuse-sshfs (used
+# by dotfiles-azir scripts + Mount Rainier's SSHFS mounts).
+RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
-# ghostty here too, alongside starship/yazi: none of the three are packaged by Fedora.
-# ghostty is niri's terminal (see the niri/DMS section above).
+# ghostty here too, alongside starship/yazi: none of the three are packaged by Fedora, and
+# none are in Roshar (which keeps Ptyxis as its terminal instead).
 RUN dnf5 -y install starship yazi ghostty \
  && rm -f /etc/yum.repos.d/terra.repo \
  && dnf5 clean all
@@ -157,67 +106,52 @@ RUN dnf5 -y install tailscale \
  && systemctl enable tailscaled.service \
  && dnf5 clean all
 
-# --- Flathub remote ---
-RUN mkdir -p /etc/flatpak/remotes.d \
- && curl -fsSL -o /etc/flatpak/remotes.d/flathub.flatpakrepo \
-      https://dl.flathub.org/repo/flathub.flatpakrepo
-
-# --- Dev containers ---
-RUN dnf5 -y install distrobox \
- && dnf5 clean all
-
-# --- Lean out: strip Silverblue defaults Azir doesn't use ---
-# First subtractive step in an otherwise additive image — everything here was checked
-# against `dnf5 repoquery --installed --leaves` on real hardware (azir-beryl), not
-# guessed. dnf5 remove also drops now-orphaned deps of these automatically (e.g.
-# ptyxis's vte291), so the build log will show a larger transaction than this list.
-#   firefox, firefox-langpacks — native Chromium (+ H.264) is the only browser Azir
-#     wants baked in; reinstall as a Flatpak if Firefox is ever needed again.
-#   gnome-tour, gnome-user-docs, yelp — first-run OOBE tour + GNOME's help browser and
-#     its docs; pure onboarding/reference, no functional loss.
-#   ptyxis — Ghostty is the terminal now (see the niri/DMS section above).
-#   toolbox — redundant with distrobox, which Azir standardizes on.
-#   rpmfusion-free-release — this image's own rpmfusion repo file is deleted right
-#     after use, earlier in this file (Chromium/libavcodec-freeworld); the release
-#     package itself is inert rpmdb bookkeeping once that repo is gone.
-#   fedora-third-party — the "enable third-party repos" prompt; repos are managed
-#     explicitly in this Containerfile, not interactively.
-#   open-vm-tools-desktop, virtualbox-guest-additions, qemu-guest-agent,
-#     hyperv-daemons — hypervisor guest-integration tools; Azir targets real hardware.
-#   b43-fwcutter, b43-openfwwf, iwlegacy-firmware — firmware for wifi chips
-#     discontinued before ~2010; real wifi stays covered by iwlwifi-mvm/-dvm.
-#   bluez-cups — Bluetooth printing, essentially unused.
-#   gamemode — game-performance daemon; no game launchers on Azir.
-# Deliberately NOT stripped, despite being leaves too: VPN protocol plugins beyond
-# Tailscale, realmd/sssd-kcm (domain join), mobile broadband, SMB/NFS + gvfs backends,
-# printer-brand drivers, CJK ibus engines, brltty, hfsplus-tools, orca, and
-# gnome-initial-setup — all either in active use or judged not worth the risk.
+# --- Lean out: strip what Roshar's base doesn't already strip ---
+# Roshar's own build already removes 13 leaves shared with Azir's old list (gnome-tour,
+# gnome-user-docs, yelp, fedora-third-party, open-vm-tools-desktop, virtualbox-guest-additions,
+# qemu-guest-agent, hyperv-daemons, b43-fwcutter, b43-openfwwf, iwlegacy-firmware, bluez-cups,
+# gamemode) — checked against `dnf5 repoquery --installed --leaves` on real hardware
+# originally, now just inherited. What's left is Azir-specific: Roshar keeps Firefox, Ptyxis,
+# and toolbox because it doesn't replace them with anything; Azir does (Chromium, ghostty,
+# distrobox — installed above/below), so those come out here instead.
+#   firefox, firefox-langpacks — native Chromium (+ H.264) is the only browser Azir wants
+#     baked in; reinstall as a Flatpak if Firefox is ever needed again.
+#   ptyxis — Ghostty is the terminal now (see the CLI toolkit section above).
+#   toolbox — redundant with distrobox (from Roshar's base), which Azir standardizes on.
+#   rpmfusion-free-release — this image's own rpmfusion repo file is deleted right after use,
+#     earlier in this file (Chromium/libavcodec-freeworld); the release package itself is
+#     inert rpmdb bookkeeping once that repo is gone. Roshar never installs this at all.
+# Deliberately NOT stripped, despite being leaves too: VPN protocol plugins beyond Tailscale,
+# realmd/sssd-kcm (domain join), mobile broadband, SMB/NFS + gvfs backends, printer-brand
+# drivers, CJK ibus engines, brltty, hfsplus-tools, orca, and gnome-initial-setup — all either
+# in active use or judged not worth the risk.
 RUN dnf5 -y remove \
-      firefox firefox-langpacks gnome-tour gnome-user-docs yelp ptyxis toolbox \
-      rpmfusion-free-release fedora-third-party \
-      open-vm-tools-desktop virtualbox-guest-additions qemu-guest-agent hyperv-daemons \
-      b43-fwcutter b43-openfwwf iwlegacy-firmware bluez-cups gamemode \
+      firefox firefox-langpacks ptyxis toolbox rpmfusion-free-release \
  && dnf5 clean all
 
-# Guard: confirm the stripped packages are actually gone and GNOME/GDM survived.
+# Guard: confirm the stripped-here packages are gone, the 13 Roshar already stripped are still
+# gone (defense-in-depth against Roshar's own build regressing upstream), and GNOME/GDM survived.
 RUN set -e; \
-    for pkg in firefox firefox-langpacks gnome-tour gnome-user-docs yelp ptyxis toolbox \
-               rpmfusion-free-release fedora-third-party open-vm-tools-desktop \
+    for pkg in firefox firefox-langpacks ptyxis toolbox rpmfusion-free-release; do \
+      ! rpm -q "$pkg" >/dev/null 2>&1 || { echo "ERROR: $pkg still installed after strip" >&2; exit 1; }; \
+    done; \
+    for pkg in gnome-tour gnome-user-docs yelp fedora-third-party open-vm-tools-desktop \
                virtualbox-guest-additions qemu-guest-agent hyperv-daemons \
                b43-fwcutter b43-openfwwf iwlegacy-firmware bluez-cups gamemode; do \
-      ! rpm -q "$pkg" >/dev/null 2>&1 || { echo "ERROR: $pkg still installed after strip" >&2; exit 1; }; \
+      ! rpm -q "$pkg" >/dev/null 2>&1 || { echo "ERROR: $pkg unexpectedly present — was it re-added upstream in roshar?" >&2; exit 1; }; \
     done; \
     rpm -q gnome-shell gdm xdg-desktop-portal-gnome gnome-keyring \
            pipewire wireplumber NetworkManager >/dev/null \
       || { echo "ERROR: the strip disturbed GNOME/plumbing (should only remove the named leaves)" >&2; exit 1; }; \
-    echo "lean-out OK: 17 packages stripped, GNOME/GDM intact"
+    echo "lean-out OK: 5 stripped here + 13 inherited-absent verified, GNOME/GDM intact"
 
-# Guard for the whole app layer.
+# Guard for the whole app layer. First rpm -q group is installed by this layer; second is
+# inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
-           fish eza bat jq zip fuse-sshfs fzf xdg-terminal-exec ripgrep chezmoi git-core \
-           wl-clipboard ddcutil fastfetch btop starship yazi ghostty \
-           tailscale distrobox >/dev/null; \
+           fish jq zip fuse-sshfs xdg-terminal-exec \
+           starship yazi ghostty tailscale >/dev/null; \
+    rpm -q ripgrep fzf bat eza fastfetch btop git-core wl-clipboard ddcutil chezmoi distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
     test -d /usr/lib/opt/1Password || { echo "ERROR: 1Password payload not relocated into /usr" >&2; exit 1; }; \
@@ -232,32 +166,23 @@ RUN set -e; \
     test -f /usr/lib/sysctl.d/60-1password-ptrace.conf || { echo "ERROR: ptrace_scope drop-in missing" >&2; exit 1; }; \
     command -v keyd >/dev/null || { echo "ERROR: keyd binary missing" >&2; exit 1; }; \
     test -f /usr/lib/systemd/system/keyd.service || { echo "ERROR: keyd.service missing — FORCE_SYSTEMD did not take" >&2; exit 1; }; \
-    test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing" >&2; exit 1; }; \
+    test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing (should be inherited from roshar)" >&2; exit 1; }; \
     systemctl is-enabled tailscaled.service >/dev/null || { echo "ERROR: tailscaled is not enabled" >&2; exit 1; }; \
     echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), 1password $(rpm -q --qf '%{VERSION}' 1password), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
 
 # --- Update policy: manual only ---
-RUN systemctl mask bootc-fetch-apply-updates.timer rpm-ostreed-automatic.timer \
- && for t in bootc-fetch-apply-updates.timer rpm-ostreed-automatic.timer; do \
+# Roshar's own base already masks both timers; just re-verify the mask survived inheritance.
+RUN for t in bootc-fetch-apply-updates.timer rpm-ostreed-automatic.timer; do \
       [ "$(readlink -f "/etc/systemd/system/$t")" = /dev/null ] \
-        || { echo "ERROR: $t not masked" >&2; exit 1; }; \
+        || { echo "ERROR: $t not masked in the roshar base" >&2; exit 1; }; \
     done \
- && echo "update timers masked: bootc-fetch-apply-updates + rpm-ostreed-automatic"
+ && echo "update timers confirmed masked (inherited from roshar)"
 
-# --- Image-update trust ---
-# Verify our own update stream (ghcr.io/reinier/azir). Shared cosign key with Steen/Tashikk;
-# signedIdentity=matchRepository binds each signature to its own repo, so no cross-repo auth.
-# NOTE: requires SIGNING_SECRET (the same key) set on the azir repo, or the first push is
-# UNSIGNED and `bootc upgrade` (once on Azir) will reject it. First rebase FROM Silverblue is
-# still trust-on-first-use regardless.
-COPY cosign.pub /usr/share/pki/containers/cosign.pub
-COPY patch-policy.py /tmp/patch-policy.py
-RUN python3 /tmp/patch-policy.py && rm -f /tmp/patch-policy.py
-
-COPY files/azir-registries.yaml /usr/share/factory/etc/containers/registries.d/azir.yaml
-RUN mkdir -p /etc/containers/registries.d \
- && cp /usr/share/factory/etc/containers/registries.d/azir.yaml \
-       /etc/containers/registries.d/azir.yaml
+# --- Image-update trust: inherited from ghcr.io/reinier/roshar ---
+# Roshar's own build already bakes cosign.pub, a sigstoreSigned policy.json entry, and a
+# registries.d file — all scoped to the ghcr.io/reinier NAMESPACE, not just .../roshar, so
+# ghcr.io/reinier/azir is already covered by inheritance. No Azir-specific COPY needed here.
+# See backlog/0004.
 
 # Fail the build on real bootc issues (warnings are fine).
 RUN bootc container lint
