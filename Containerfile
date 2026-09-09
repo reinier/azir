@@ -88,8 +88,12 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # chezmoi (its CLI toolkit) and ddcutil (bundled into its niri/dms install line). What's left
 # is tied to Azir's own shell/editor/terminal choices, not broadly useful enough for Roshar:
 # fish (the shell), xdg-terminal-exec (default-terminal resolution), jq/zip/fuse-sshfs (used
-# by dotfiles-azir scripts + Mount Rainier's SSHFS mounts).
-RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec \
+# by dotfiles-azir scripts + Mount Rainier's SSHFS mounts). wl-kbptr: keyboard-driven pointer
+# control (github.com/moverest/wl-kbptr) — official Fedora package, no COPR needed. Confirmed
+# niri implements all three protocols it needs (wlr-layer-shell, wlr-virtual-pointer,
+# wlr-screencopy — checked niri's own src/protocols/ directly, not just wl-kbptr's own
+# compatibility claim). Bound to Mod+Shift+M in dotfiles-azir's local/binds.kdl.
+RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # ghostty here too, alongside starship/yazi: none of the three are packaged by Fedora, and
@@ -149,7 +153,7 @@ RUN set -e; \
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
-           fish jq zip fuse-sshfs xdg-terminal-exec \
+           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr \
            starship yazi ghostty tailscale >/dev/null; \
     rpm -q ripgrep fzf bat eza fastfetch btop git-core wl-clipboard ddcutil chezmoi distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
