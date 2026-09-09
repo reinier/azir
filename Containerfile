@@ -92,7 +92,7 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # control (github.com/moverest/wl-kbptr) — official Fedora package, no COPR needed. Confirmed
 # niri implements all three protocols it needs (wlr-layer-shell, wlr-virtual-pointer,
 # wlr-screencopy — checked niri's own src/protocols/ directly, not just wl-kbptr's own
-# compatibility claim). Bound to Mod+Shift+M in dotfiles-azir's local/binds.kdl.
+# compatibility claim). Bound to Mod+Ctrl+F12 in dotfiles-azir's local/binds.kdl.
 RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
