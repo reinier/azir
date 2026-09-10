@@ -92,8 +92,11 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # control (github.com/moverest/wl-kbptr) — official Fedora package, no COPR needed. Confirmed
 # niri implements all three protocols it needs (wlr-layer-shell, wlr-virtual-pointer,
 # wlr-screencopy — checked niri's own src/protocols/ directly, not just wl-kbptr's own
-# compatibility claim). Bound to Mod+Ctrl+F12 in dotfiles-azir's local/binds.kdl.
-RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr \
+# compatibility claim). Bound to Mod+Ctrl+F12 in dotfiles-azir's local/binds.kdl. wtype:
+# Wayland key-injection tool, needed by voxtype's (dictation, dotfiles-fetched AppImage —
+# see dotfiles-azir) "type" output mode; niche enough to voxtype specifically that it stays
+# here rather than in Roshar's own generic wl-clipboard-tier utilities.
+RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # ghostty here too, alongside starship/yazi: none of the three are packaged by Fedora, and
@@ -153,7 +156,7 @@ RUN set -e; \
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
-           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr \
+           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype \
            starship yazi ghostty tailscale >/dev/null; \
     rpm -q ripgrep fzf bat eza fastfetch btop git-core wl-clipboard ddcutil chezmoi distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
