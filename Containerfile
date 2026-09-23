@@ -59,6 +59,10 @@ RUN curl -fsSL -o /tmp/JetBrainsMono.tar.xz \
 #   heif-pixbuf-loader, ffmpegthumbnailer — thumbnails for those and for video, in Nautilus,
 #     which is host-native from the Silverblue base. Flatpak viewers bundle their own
 #     decoders, so files always *open*; without these the file manager just shows blank tiles.
+#     heif-pixbuf-loader is a Provides of gdk-pixbuf2 on F44, not a package of its own, so
+#     this install is a no-op today — kept so the requirement is stated, and so it still
+#     resolves if Fedora ever splits the loader back out. The guard below has to ask
+#     --whatprovides for the same reason: plain `rpm -q` matches names, never provides.
 #   pipewire-codec-aptx       — aptX for Bluetooth audio.
 RUN dnf5 -y install "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
  && dnf5 -y install chromium libavcodec-freeworld libheif-freeworld \
@@ -171,7 +175,9 @@ RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
            fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty \
            starship yazi tailscale \
-           libheif-freeworld heif-pixbuf-loader ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
+           libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
+    rpm -q --whatprovides heif-pixbuf-loader >/dev/null 2>&1 \
+      || { echo "ERROR: nothing provides heif-pixbuf-loader — HEIF thumbnails will be blank" >&2; exit 1; }; \
     rpm -q ripgrep fzf bat eza fastfetch btop git-core wl-clipboard ddcutil chezmoi distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
