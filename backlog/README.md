@@ -35,7 +35,7 @@ stanza. Most items are "ported from X"; this backlog is short.
 
 1Password (+CLI, /opt relocation, sysusers GIDs, ptrace), Chromium+codecs,
 keyd (source build), Tailscale, Nerd Font, and the fish/jq/zip/fuse-sshfs/xdg-terminal-exec/
-starship/yazi/ghostty CLI remainder. (Displays are DMS's job — no kanshi/wdisplays, unlike
+starship/yazi/kitty CLI remainder. (Displays are DMS's job — no kanshi/wdisplays, unlike
 Tashikk's Noctalia.) Flathub remote, distrobox, the rest of the CLI toolkit (ripgrep/fzf/bat/
 eza/fastfetch/btop/git-core/wl-clipboard/ddcutil/chezmoi), and the signing/trust setup are no
 longer ported here — they're inherited from the `roshar` base (see `0004`).

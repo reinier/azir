@@ -31,7 +31,7 @@ Important: you should have a Niri config ready where DMS is launched from config
 On top of everything Silverblue already provides (GNOME, GDM, GNOME Software, PipeWire,
 printing, firmware updates, keyring):
 
-- **A second desktop** — niri + DankMaterialShell, with the Ghostty terminal and
+- **A second desktop** — niri + DankMaterialShell, with the Kitty terminal and
   xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
 - **Browser** — Chromium with full media codecs (Firefox is stripped — reinstall as a Flatpak if you want it back).
 - **Apps** — 1Password (+ CLI), Tailscale.

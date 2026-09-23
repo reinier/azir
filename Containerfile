@@ -4,7 +4,7 @@
 # reusable niri+DMS-on-Silverblue core — repo install, quickshell provenance guard, additive
 # session, CLI toolkit subset, Flathub remote, distrobox, signing/trust — all lives there now.
 # This Containerfile only adds what's Azir-specific on top: 1Password, Chromium+codecs, keyd,
-# Tailscale, ghostty/starship/yazi, and the personal CLI remainder Roshar doesn't cover.
+# Tailscale, kitty/starship/yazi, and the personal CLI remainder Roshar doesn't cover.
 #
 # DMS is NOT `--global` enabled (inherited decision, unchanged) — the dotfiles spawn it from
 # niri, so it only runs in the niri session, never leaking into GNOME.
@@ -98,13 +98,14 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # here rather than in Roshar's own generic wl-clipboard-tier utilities. podman-compose: podman
 # itself comes from Silverblue's base image already (distrobox needs it); this just adds the
 # compose provider `podman compose` looks for, needed to run the plaiground repo's rl-devbox
-# devcontainer (docker/docker-compose.yml there) via Podman instead of Docker.
-RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose \
+# devcontainer (docker/docker-compose.yml there) via Podman instead of Docker. kitty: the
+# terminal (replaced ghostty, 2026-09-23) — Fedora packages it, so unlike ghostty it needs no
+# Terra and sits on this line instead of the one below.
+RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
-# ghostty here too, alongside starship/yazi: none of the three are packaged by Fedora, and
-# none are in Roshar (which keeps Ptyxis as its terminal instead).
-RUN dnf5 -y install starship yazi ghostty \
+# starship/yazi: neither is packaged by Fedora, and neither is in Roshar.
+RUN dnf5 -y install starship yazi \
  && rm -f /etc/yum.repos.d/terra.repo \
  && dnf5 clean all
 
@@ -122,11 +123,11 @@ RUN dnf5 -y install tailscale \
 # qemu-guest-agent, hyperv-daemons, b43-fwcutter, b43-openfwwf, iwlegacy-firmware, bluez-cups,
 # gamemode) — checked against `dnf5 repoquery --installed --leaves` on real hardware
 # originally, now just inherited. What's left is Azir-specific: Roshar keeps Firefox, Ptyxis,
-# and toolbox because it doesn't replace them with anything; Azir does (Chromium, ghostty,
+# and toolbox because it doesn't replace them with anything; Azir does (Chromium, kitty,
 # distrobox — installed above/below), so those come out here instead.
 #   firefox, firefox-langpacks — native Chromium (+ H.264) is the only browser Azir wants
 #     baked in; reinstall as a Flatpak if Firefox is ever needed again.
-#   ptyxis — Ghostty is the terminal now (see the CLI toolkit section above).
+#   ptyxis — Kitty is the terminal now (see the CLI toolkit section above).
 #   toolbox — redundant with distrobox (from Roshar's base), which Azir standardizes on.
 #   rpmfusion-free-release — this image's own rpmfusion repo file is deleted right after use,
 #     earlier in this file (Chromium/libavcodec-freeworld); the release package itself is
@@ -159,8 +160,8 @@ RUN set -e; \
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
-           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose \
-           starship yazi ghostty tailscale >/dev/null; \
+           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty \
+           starship yazi tailscale >/dev/null; \
     rpm -q ripgrep fzf bat eza fastfetch btop git-core wl-clipboard ddcutil chezmoi distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
