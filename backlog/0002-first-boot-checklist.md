@@ -30,6 +30,25 @@ sudo bootc switch ghcr.io/reinier/azir:latest && sudo systemctl reboot
 ## C. Silverblue plumbing (should be untouched)
 
 - [ ] Audio, WiFi/DNS, Bluetooth, printing (GNOME panel), fingerprint, fwupd.
+- [ ] Bluetooth audio negotiates **aptX** where the headset supports it (`pipewire-codec-aptx`
+      is in the image; the codec still has to be picked at connect time).
+- [ ] HEIC/HEIF and video files show **thumbnails in Nautilus**, not blank tiles
+      (`libheif-freeworld` + `heif-pixbuf-loader` + `ffmpegthumbnailer`). Flatpak viewers
+      bundle their own decoders, so "it opens fine" does not prove this works.
+- [ ] **VAAPI hardware decode** is actually live: `vainfo` lists `VAProfileH264*` and
+      `VAProfileHEVC*` entrypoints. Fedora's stock `mesa-va-drivers` has these stripped; the
+      image swaps in `mesa-va-drivers-freeworld`, and the build guard fails if that reverts.
+- [ ] **TRIM reaches the SSD through LUKS** — encrypted installs only, and easy to miss:
+      dm-crypt blocks discards by default, so TRIM silently never reaches the drive no matter
+      what the filesystem does. `lsblk --discard` should show non-zero `DISC-GRAN`/`DISC-MAX`
+      on the **LUKS mapper**, not just on the physical disk. If they're zeroed:
+      ```sh
+      sudo cryptsetup --allow-discards --persistent refresh /dev/mapper/luks-<UUID>
+      lsblk --discard && sudo fstrim -v /sysroot
+      ```
+      `--persistent` survives reboots, so no kernel argument is needed. This is
+      per-installation disk state, not image content — it cannot be baked into the
+      Containerfile, which is exactly why it lives on this checklist.
 
 ## D. Displays (niri session)
 

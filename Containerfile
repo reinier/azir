@@ -52,8 +52,22 @@ RUN curl -fsSL -o /tmp/JetBrainsMono.tar.xz \
  && fc-cache -f /usr/share/fonts/jetbrainsmono-nerd
 
 # --- Native Chromium + free codecs ---
+# Everything needing RPM Fusion has to live in THIS RUN: the repo file is deleted two lines
+# down, so a package added anywhere later silently fails to resolve.
+#   libavcodec-freeworld      — the ffmpeg side of H.264/HEVC, for Chromium.
+#   mesa-va-drivers-freeworld — the *driver* side. Fedora ships mesa-va-drivers with the
+#     H.264/HEVC VAAPI entrypoints stripped, so hardware video decode stays off even with
+#     libavcodec-freeworld present -- the two are not substitutes. Conflicts with Fedora's
+#     build, hence swap rather than install.
+#   libheif-freeworld         — HEIC/HEIF decode (phone photos).
+#   heif-pixbuf-loader, ffmpegthumbnailer — thumbnails for those and for video, in Nautilus,
+#     which is host-native from the Silverblue base. Flatpak viewers bundle their own
+#     decoders, so files always *open*; without these the file manager just shows blank tiles.
+#   pipewire-codec-aptx       — aptX for Bluetooth audio.
 RUN dnf5 -y install "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
- && dnf5 -y install chromium libavcodec-freeworld \
+ && dnf5 -y install chromium libavcodec-freeworld libheif-freeworld \
+      heif-pixbuf-loader ffmpegthumbnailer pipewire-codec-aptx \
+ && dnf5 -y swap mesa-va-drivers mesa-va-drivers-freeworld \
  && rm -f /etc/yum.repos.d/rpmfusion-*.repo \
  && dnf5 clean all
 
@@ -161,7 +175,12 @@ RUN set -e; \
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
            fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty \
-           starship yazi tailscale >/dev/null; \
+           starship yazi tailscale \
+           libheif-freeworld heif-pixbuf-loader ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
+    rpm -q mesa-va-drivers-freeworld >/dev/null \
+      || { echo "ERROR: mesa-va-drivers-freeworld missing — the swap did not take, VAAPI H.264/HEVC is off" >&2; exit 1; }; \
+    ! rpm -q mesa-va-drivers >/dev/null 2>&1 \
+      || { echo "ERROR: Fedora's stripped mesa-va-drivers is back alongside the freeworld build" >&2; exit 1; }; \
     rpm -q ripgrep fzf bat eza fastfetch btop git-core wl-clipboard ddcutil chezmoi distrobox >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
