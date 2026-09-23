@@ -27,6 +27,33 @@ sudo bootc switch ghcr.io/reinier/azir:latest && sudo systemctl reboot
 - [ ] Chromium plays H.264; `tailscale up`; keyd tap-hold; CLI toolkit +
       `distrobox create`; Flathub present.
 
+### The Flatpak app set (first real run of the fedora→Flathub move)
+
+`chezmoi apply` moves Silverblue's 18 preinstalled apps off the base's own `fedora`
+remote onto Flathub, then retires that remote. **Watch this step rather than walking
+away**: each app is uninstalled before its Flathub copy is pulled, so a network drop
+in between leaves it uninstalled. It says so loudly (`ERROR: … it is gone, reinstall
+by hand`) and one `flatpak install` recovers it, but nothing retries automatically.
+
+- [ ] The move ran and completed: `==> Moving declared apps off the "fedora" remote`,
+      with no `ERROR: … it is gone` lines.
+- [ ] The remote retired itself — `flatpak remotes` lists **only** `flathub`. If
+      `fedora` is still there the script kept it deliberately and named what is still
+      installed from it; those apps need declaring in `APPS` (or removing), then re-run.
+- [ ] All declared apps present: `flatpak list --system --app | wc -l` matches the
+      `APPS` count the script reports (`==> Installing/updating N Flatpak apps`).
+- [ ] No drift between what's installed and what's declared — this should print nothing
+      (fish; `psub` is fish's process substitution):
+      ```fish
+      comm -23 (flatpak list --system --app --columns=application | sort | psub) \
+               (sed -n '/^APPS=(/,/^)/p' ~/.local/share/chezmoi/.chezmoiscripts/run_onchange_install-flatpaks.sh \
+                  | grep -vE '^\s*#' | grep -E '^  \S' | tr -d ' ' | sort | psub)
+      ```
+- [ ] **Unverified, worth watching here:** whether Silverblue's preinstall mechanism can
+      re-run after the remote is gone and re-add apps from it. Re-check `flatpak remotes`
+      after a few reboots and a GNOME Software launch. If `fedora` comes back on its own,
+      that is new information and the move needs a guard against it.
+
 ## C. Silverblue plumbing (should be untouched)
 
 - [ ] Audio, WiFi/DNS, Bluetooth, printing (GNOME panel), fingerprint, fwupd.
