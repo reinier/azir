@@ -113,8 +113,10 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # compose provider `podman compose` looks for, needed to run the plaiground repo's rl-devbox
 # devcontainer (docker/docker-compose.yml there) via Podman instead of Docker. kitty: the
 # terminal (replaced ghostty, 2026-09-23) — Fedora packages it, so unlike ghostty it needs no
-# Terra and sits on this line instead of the one below.
-RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty \
+# Terra and sits on this line instead of the one below. tmux: terminal multiplexer, mainly for
+# persistent sessions over SSH into Azir — host-native rather than in the apps distrobox so it
+# survives independently of any container; runs on tmux's own defaults (no dotfiles config).
+RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty tmux \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # starship/yazi: neither is packaged by Fedora, and neither is in Roshar.
@@ -173,7 +175,7 @@ RUN set -e; \
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
     rpm -q chromium libavcodec-freeworld 1password 1password-cli \
-           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty \
+           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty tmux \
            starship yazi tailscale \
            libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
     rpm -q --whatprovides heif-pixbuf-loader >/dev/null 2>&1 \
