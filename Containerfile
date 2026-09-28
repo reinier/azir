@@ -51,10 +51,11 @@ RUN curl -fsSL -o /tmp/JetBrainsMono.tar.xz \
  && rm -f /tmp/JetBrainsMono.tar.xz \
  && fc-cache -f /usr/share/fonts/jetbrainsmono-nerd
 
-# --- Native Chromium + free codecs ---
-# Everything needing RPM Fusion has to live in THIS RUN: the repo file is deleted two lines
-# down, so a package added anywhere later silently fails to resolve.
-#   libavcodec-freeworld      — the ffmpeg side of H.264/HEVC, for Chromium.
+# --- Native Chromium + codecs ---
+# Everything needing RPM Fusion has to live in THIS RUN: the repo file is deleted at the end,
+# so a package added anywhere later silently fails to resolve.
+#   ffmpeg (RPM Fusion, swapped in for Fedora's ffmpeg-free) — H.264/HEVC etc. for Chromium,
+#     gstreamer, thumbnailers, Qt multimedia. See below for why the full swap.
 #   libheif-freeworld         — HEIC/HEIF decode (phone photos).
 #   heif-pixbuf-loader, ffmpegthumbnailer — thumbnails for those and for video, in Nautilus,
 #     which is host-native from the Silverblue base. Flatpak viewers bundle their own
@@ -64,30 +65,41 @@ RUN curl -fsSL -o /tmp/JetBrainsMono.tar.xz \
 #     resolves if Fedora ever splits the loader back out. The guard below has to ask
 #     --whatprovides for the same reason: plain `rpm -q` matches names, never provides.
 #   pipewire-codec-aptx       — aptX for Bluetooth audio.
-# libavcodec-freeworld shares its soname with Fedora's libavcodec-free and sits in
-# /usr/lib64/ffmpeg, which the loader searches first — so it must never be OLDER than the
-# Fedora -free libs, or libavformat & co. fail to load (undefined LIBAVCODEC_62 symbols) and
-# every ffmpeg consumer breaks: Chromium media, gstreamer libav, thumbnailers, localsearch.
-# Package metadata only enforces the opposite direction (freeworld Conflicts: libavcodec-free
-# < its own version). Happened for real on 2026-09-28: RPM Fusion shipped freeworld 8.1.3
-# before Fedora's ffmpeg-free 8.1.3 was stable, and dnf silently fell back to freeworld
-# 8.0.1-6 (release repo) while *downgrading* the -free libs to 8.1.1 from updates-archive.
-# Hence: --best, so dnf fails instead of falling back; a version check; and an ffmpeg
-# encode+decode smoke test through freeworld's libx264. A failed build here is intended —
-# no new image beats a broken one; it clears once Fedora's -free libs catch up.
-RUN dnf5 -y install "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
- && dnf5 -y install --best chromium libavcodec-freeworld libheif-freeworld \
-      heif-pixbuf-loader ffmpegthumbnailer pipewire-codec-aptx \
- && rm -f /etc/yum.repos.d/rpmfusion-*.repo \
- && dnf5 clean all \
- && fw="$(rpm -q --qf '%{VERSION}' libavcodec-freeworld)" \
- && free="$(rpm -q --qf '%{VERSION}' libavcodec-free)" \
- && [ "$(rpm --eval "%{lua:print(rpm.vercmp('$fw', '$free'))}")" -ge 0 ] \
-      || { echo "ERROR: libavcodec-freeworld $fw is older than libavcodec-free $free — ffmpeg stack broken" >&2; exit 1; } \
- && ffmpeg -hide_banner -v error -f lavfi -i testsrc=d=1 -c:v libx264 -y /tmp/smoke.mkv \
- && ffmpeg -hide_banner -v error -i /tmp/smoke.mkv -f null - \
- && rm -f /tmp/smoke.mkv \
- && echo "ffmpeg stack OK: freeworld $fw, -free $free, libx264 encode+decode works"
+#
+# Why swap to RPM Fusion's full ffmpeg instead of layering libavcodec-freeworld on Fedora's
+# -free libs: freeworld is ONE lib from RPM Fusion shadowing ONE of Fedora's (same soname,
+# /usr/lib64/ffmpeg searched first), so the two repos' release timing has to line up. On
+# 2026-09-28 it didn't — RPM Fusion shipped freeworld 8.1.3 before Fedora's 8.1.3 was stable,
+# dnf fell back to freeworld 8.0.1-6 and downgraded the -free libs from updates-archive, and
+# an older libavcodec under a newer libavformat broke every ffmpeg consumer (undefined
+# LIBAVCODEC_62 symbols). The full swap replaces ALL the -free libs (ffmpeg-libs Conflicts
+# with each) with one set built together, so there is no cross-repo version pairing left.
+# Every consumer requires the sonames (libavcodec.so.62 …), not the -free package names.
+#
+# If the swap can't resolve, fall back to Fedora's own -free stack (consistent, just no
+# patented codecs) with a CI warning, rather than failing: a codec hiccup must not block the
+# rest of the image's updates. The smoke test at the end does fail the build — it only trips
+# on a stack that is actually broken, which must never ship.
+RUN set -e; \
+    dnf5 -y install "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm"; \
+    if dnf5 -y swap --best --allowerasing ffmpeg-free ffmpeg; then \
+      codecs=full; \
+    else \
+      codecs=free; \
+      echo "::warning title=azir codecs::RPM Fusion ffmpeg swap failed — image ships Fedora's ffmpeg-free (no H.264/HEVC). Retries on the next build."; \
+    fi; \
+    dnf5 -y install --best chromium libheif-freeworld \
+      heif-pixbuf-loader ffmpegthumbnailer pipewire-codec-aptx; \
+    rm -f /etc/yum.repos.d/rpmfusion-*.repo; \
+    dnf5 clean all; \
+    if [ "$codecs" = full ]; then \
+      ffmpeg -hide_banner -v error -f lavfi -i testsrc=d=1 -c:v libx264 -y /tmp/smoke.mkv; \
+      ffmpeg -hide_banner -v error -i /tmp/smoke.mkv -f null -; \
+      rm -f /tmp/smoke.mkv; \
+    else \
+      ffmpeg -hide_banner -v error -f lavfi -i testsrc=d=1 -f null -; \
+    fi; \
+    echo "ffmpeg stack OK ($codecs): $(rpm -q --whatprovides 'libavcodec.so.62()(64bit)')"
 
 # --- 1Password: desktop app + CLI ---
 # Silverblue is ostree, so /opt is a symlink to /var/opt: relocate the payload into
@@ -164,7 +176,7 @@ RUN dnf5 -y install tailscale \
 #   ptyxis — Kitty is the terminal now (see the CLI toolkit section above).
 #   toolbox — redundant with distrobox (from Roshar's base), which Azir standardizes on.
 #   rpmfusion-free-release — this image's own rpmfusion repo file is deleted right after use,
-#     earlier in this file (Chromium/libavcodec-freeworld); the release package itself is
+#     earlier in this file (Chromium/ffmpeg codecs); the release package itself is
 #     inert rpmdb bookkeeping once that repo is gone. Roshar never installs this at all.
 # Deliberately NOT stripped, despite being leaves too: VPN protocol plugins beyond Tailscale,
 # realmd/sssd-kcm (domain join), mobile broadband, SMB/NFS + gvfs backends, printer-brand
@@ -193,7 +205,7 @@ RUN set -e; \
 # Guard for the whole app layer. First rpm -q group is installed by this layer; second is
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
-    rpm -q chromium libavcodec-freeworld 1password 1password-cli \
+    rpm -q chromium 1password 1password-cli \
            fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty tmux \
            starship yazi tailscale \
            libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
