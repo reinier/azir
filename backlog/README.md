@@ -23,11 +23,11 @@ stanza. Most items are "ported from X"; this backlog is short.
    key); `SIGNING_SECRET` confirmed set, CI signing since 2026-08-06.
 2. [0002-first-boot-checklist.md](0002-first-boot-checklist.md) — living hardware/boot
    verification.
-3. [0003-3fg-drag-shim.md](0003-3fg-drag-shim.md) — open, blocked on
-   `dotfiles-azir` `0007`. Bake
+3. [0003-3fg-drag-shim.md](0003-3fg-drag-shim.md) — open. Bake
    [enable-3fg-drag](https://github.com/joaodriessen/enable-3fg-drag)'s
-   `LD_PRELOAD` libinput shim into the image (new build stage, mirrors `keyd`)
-   so `dotfiles-azir` `0008` has something to point `/etc/ld.so.preload` at.
+   `LD_PRELOAD` libinput shim into the image (new build stage, mirrors `keyd`) at
+   `/usr/lib64/libenable-3fg-drag.so`. Inert on its own; activated per compositor by
+   `dotfiles-azir` `0007` (GNOME, first) and `0008` (niri).
 4. [0004-rebase-from-roshar.md](0004-rebase-from-roshar.md) — **done.** Azir now builds
    `FROM ghcr.io/reinier/roshar:latest` instead of stock Silverblue directly.
 
