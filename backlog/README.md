@@ -30,6 +30,8 @@ stanza. Most items are "ported from X"; this backlog is short.
    `dotfiles-azir` `0007` (GNOME, first) and `0008` (niri).
 4. [0004-rebase-from-roshar.md](0004-rebase-from-roshar.md) — **done.** Azir now builds
    `FROM ghcr.io/reinier/roshar:latest` instead of stock Silverblue directly.
+5. [0005-gum-for-azir-menu.md](0005-gum-for-azir-menu.md) — **done.** `gum` baked in for
+   `dotfiles-azir`'s `rl-menu` ("Azir Menu"); see `dotfiles-azir` `0013`.
 
 ## Ported wholesale (see Steen / Tashikk for reasoning) — Azir-only remainder
 

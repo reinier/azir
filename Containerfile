@@ -147,7 +147,11 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # Terra and sits on this line instead of the one below. tmux: terminal multiplexer, mainly for
 # persistent sessions over SSH into Azir — host-native rather than in the apps distrobox so it
 # survives independently of any container; runs on tmux's own defaults (no dotfiles config).
-RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty tmux \
+# gum: the picker/confirm/pager UI for dotfiles-azir's rl-menu ("Azir Menu" — image update,
+# rollback, changelog, Flatpak/distrobox/dotfiles/firmware updates). Host-native, not in the
+# apps distrobox: the menu's whole job is updating the host and that distrobox, so it can't
+# depend on either being healthy. Fedora packages it, no COPR needed.
+RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty tmux gum \
  && dnf5 clean all
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # starship/yazi: neither is packaged by Fedora, and neither is in Roshar.
@@ -206,7 +210,7 @@ RUN set -e; \
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
     rpm -q chromium 1password 1password-cli \
-           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty tmux \
+           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty tmux gum \
            starship yazi tailscale \
            libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
     rpm -q --whatprovides heif-pixbuf-loader >/dev/null 2>&1 \
