@@ -32,6 +32,8 @@ stanza. Most items are "ported from X"; this backlog is short.
    `FROM ghcr.io/reinier/roshar:latest` instead of stock Silverblue directly.
 5. [0005-gum-for-azir-menu.md](0005-gum-for-azir-menu.md) — **done.** `gum` baked in for
    `dotfiles-azir`'s `rl-menu` ("Azir Menu"); see `dotfiles-azir` `0013`.
+6. [0006-keyd-commit-pin.md](0006-keyd-commit-pin.md) — **done.** keyd build checks the
+   `v2.6.0` tag still resolves to commit `7c0aecb` (supply-chain pin, from config-nixos).
 
 ## Ported wholesale (see Steen / Tashikk for reasoning) — Azir-only remainder
 

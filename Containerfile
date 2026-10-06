@@ -10,11 +10,19 @@
 # niri, so it only runs in the niri session, never leaking into GNOME.
 # No wlr-which-key here — DMS provides dank-lader as its leader menu.
 
-# --- keyd: built from source, pinned to an upstream release tag ---
+# --- keyd: built from source, pinned to an exact upstream commit ---
+# Commit, not just tag (backlog 0006): keyd runs as root and sees every keystroke, and upstream
+# is effectively one maintainer. A tag can be re-pointed upstream; the commit check below fails
+# the build if v2.6.0 ever stops meaning the code that was reviewed. Same pin as config-nixos's
+# keyd.nix. To bump: read github.com/rvaiya/keyd/compare/<old>...<new>, then update both ARGs.
 FROM registry.fedoraproject.org/fedora:44 AS keyd-build
 ARG KEYD_VERSION=v2.6.0
+ARG KEYD_COMMIT=7c0aecb8bfd34dc8642bf4eefd2e59c89e61cec3
 RUN dnf5 -y install git make gcc kernel-headers \
  && git clone --depth 1 --branch "$KEYD_VERSION" https://github.com/rvaiya/keyd /src \
+ && actual="$(git -C /src rev-parse HEAD)" \
+ && { [ "$actual" = "$KEYD_COMMIT" ] \
+      || { echo "ERROR: keyd $KEYD_VERSION is $actual, expected pinned $KEYD_COMMIT" >&2; exit 1; }; } \
  && make -C /src PREFIX=/usr \
  && make -C /src PREFIX=/usr DESTDIR=/out FORCE_SYSTEMD=1 install
 
