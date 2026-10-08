@@ -24,7 +24,10 @@ sudo bootc switch ghcr.io/reinier/azir:latest
 sudo systemctl reboot
 ```
 
-Important: you should have a Niri config ready where DMS is launched from config. My personal dotfiles take care of this and it's not build into this Azir image.
+**Niri sets itself up on first login** via Roshar's baked default config, which launches DMS —
+nothing to run yourself, and it steps aside entirely if `~/.config/niri/config.kdl` already
+exists. One catch: that default binds `Mod+T` to Ptyxis, which Azir removes in favour of
+kitty, so rebind it in `~/.config/niri/local.kdl` (my dotfiles take care of this).
 
 ## What you get
 
