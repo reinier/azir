@@ -129,6 +129,19 @@ RUN set -e; \
     fi; \
     echo "ffmpeg stack OK ($codecs): $(rpm -q --whatprovides 'libavcodec.so.62()(64bit)')"
 
+# Pin Chromium's Wayland app_id. Chromium takes it from $CHROME_DESKTOP when set, and every
+# Electron app sets that variable for itself (from its desktopName) and passes it on to what it
+# spawns. So a Chromium first started by clicking a link in a native Electron app — VS Code
+# (code.desktop) or 1Password — would come up with that app's app_id, and the leader menu's
+# `rl-run-or-cycle chromium-browser` would no longer find it (config-nixos hit this with Slack).
+# Flatpak apps don't leak it: their links go through the portal. Fedora's launcher sources
+# /etc/chromium/chromium.conf as bash right before exec'ing Chromium, so one export there
+# covers every launch path; no wrapper needed. Webapp windows (--app=) are unaffected: their
+# app_id is derived from the app URL.
+RUN printf '\n# Azir: pin the Wayland app_id; Electron apps leak their own CHROME_DESKTOP (see the\n# Azir Containerfile).\nexport CHROME_DESKTOP=chromium-browser.desktop\n' \
+      >> /etc/chromium/chromium.conf \
+ && grep -qx 'export CHROME_DESKTOP=chromium-browser.desktop' /etc/chromium/chromium.conf
+
 # --- 1Password: desktop app + CLI ---
 # Silverblue is ostree, so /opt is a symlink to /var/opt: relocate the payload into
 # /usr/lib/opt, restore the symlink, tmpfiles recreates /opt/1Password at boot. setuid/setgid
@@ -309,6 +322,7 @@ RUN set -e; \
     test -u /usr/lib/opt/1Password/chrome-sandbox || { echo "ERROR: chrome-sandbox lost its setuid bit" >&2; exit 1; }; \
     test -g /usr/lib/opt/1Password/1Password-BrowserSupport || { echo "ERROR: 1Password-BrowserSupport lost its setgid bit" >&2; exit 1; }; \
     test -g /usr/bin/op || { echo "ERROR: op lost its setgid bit" >&2; exit 1; }; \
+    grep -qx 'export CHROME_DESKTOP=chromium-browser.desktop' /etc/chromium/chromium.conf || { echo "ERROR: Chromium's CHROME_DESKTOP pin is missing from chromium.conf" >&2; exit 1; }; \
     test -u /usr/share/code/chrome-sandbox || { echo "ERROR: VS Code's chrome-sandbox lost its setuid bit" >&2; exit 1; }; \
     ! ls /etc/yum.repos.d/ | grep -qiE "^(vscode|code)\.repo$" || { echo "ERROR: a VS Code repo file was left in the image" >&2; exit 1; }; \
     test -d /usr/lib/opt/microsoft/msedge || { echo "ERROR: Edge payload not relocated into /usr" >&2; exit 1; }; \
