@@ -42,6 +42,10 @@ printing, firmware updates, keyring):
 - **Input** — keyd for tap-hold key remaps; wlr-which-key for the leader menu.
 - **Terminal toolkit** — fish, starship, eza, bat, yazi; distrobox for ad-hoc tooling.
 - **Containers** — rootless Podman, with `docker` and `docker compose` as stand-ins (no Docker daemon).
+- **An optional third session** — [Umbriel](https://github.com/noctalia-dev/umbriel) (a
+  scrolling wlroots compositor) with the [Noctalia](https://github.com/noctalia-dev/noctalia)
+  shell, to try out next to niri + DMS. Pick **Umbriel** at the login screen; nothing of it
+  runs otherwise.
 
 ## Updating
 

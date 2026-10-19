@@ -46,6 +46,41 @@ RUN dnf5 -y install git cargo rust pkgconf-pkg-config cairo-devel cairo-gobject-
  && cargo build --release --locked --manifest-path /src/Cargo.toml \
  && install -D -m 755 /src/target/release/wlr-which-key /out/usr/bin/wlr-which-key
 
+# --- Umbriel + its portal: built from source, pinned to exact upstream commits ---
+# The optional "Umbriel" login session (dotfiles-azir backlog / config-nixos backlog 0039):
+# Umbriel is noctalia-dev's scrolling wlroots compositor, paired with the Noctalia shell
+# (from Fedora's own repos, below). niri + DMS stays the default; this only adds a session
+# to pick at the login screen. Neither repo has releases and Fedora packages neither, so both
+# are built at the same commits config-nixos uses (nixpkgs-unstable's umbriel
+# 0-unstable-2026-09-25, xdg-desktop-portal-umbriel 0-unstable-2026-09-24). The portal
+# provides Screencast/Screenshot; its GTK4 share picker is built in, as on NixOS.
+# Umbriel's umbrielfx compiles against wlroots' private struct layouts, so the exact wlroots
+# version it was built against is recorded and the app guard requires the image's wlroots to
+# match it. To bump: pick new commits, rebuild, re-check dotfiles-azir's Umbriel config.
+FROM registry.fedoraproject.org/fedora:44 AS umbriel-build
+ARG UMBRIEL_COMMIT=834607334f9bb13a22b1e2a53bf47cfbfa5be7dd
+ARG UMBRIEL_PORTAL_COMMIT=ee380d66984a45310ef48a283ad806ebab752788
+RUN dnf5 -y install git gcc-c++ meson ninja-build pkgconf-pkg-config \
+      wayland-devel wayland-protocols-devel wlroots-devel libxkbcommon-devel libinput-devel \
+      pixman-devel libdrm-devel libdisplay-info-devel systemd-devel libxcb-devel xcb-util-wm-devel \
+      cairo-devel pango-devel tomlplusplus-devel json-devel lcms2-devel jemalloc-devel \
+      mesa-libEGL-devel mesa-libGLES-devel mesa-libgbm-devel \
+      sdbus-cpp-devel pipewire-devel gtk4-devel \
+ && fetch() { git init -q "$2" && git -C "$2" fetch -q --depth 1 "$1" "$3" \
+      && git -C "$2" checkout -q FETCH_HEAD \
+      && [ "$(git -C "$2" rev-parse HEAD)" = "$3" ] \
+      || { echo "ERROR: could not check out $1 at pinned $3" >&2; return 1; }; } \
+ && fetch https://github.com/noctalia-dev/umbriel /src/umbriel "$UMBRIEL_COMMIT" \
+ && fetch https://github.com/noctalia-dev/xdg-desktop-portal-umbriel /src/portal "$UMBRIEL_PORTAL_COMMIT" \
+ && meson setup /build/umbriel /src/umbriel --buildtype=release --prefix=/usr -Dtests=disabled \
+ && meson compile -C /build/umbriel \
+ && DESTDIR=/out meson install -C /build/umbriel \
+ && meson setup /build/portal /src/portal --buildtype=release --prefix=/usr -Dpicker=enabled \
+ && meson compile -C /build/portal \
+ && DESTDIR=/out meson install -C /build/portal \
+ && mkdir -p /out/usr/share/umbriel \
+ && rpm -q --qf '%{VERSION}-%{RELEASE}\n' wlroots > /out/usr/share/umbriel/azir-built-against-wlroots
+
 # Roshar — niri + DMS + quickshell + CLI toolkit subset + Flathub + distrobox + signing/trust,
 # all already baked and guarded there. GNOME + GDM stay (inherited, additive).
 FROM ghcr.io/reinier/roshar:latest
@@ -261,6 +296,55 @@ COPY --from=keyd-build /out/ /
 
 # --- wlr-which-key artifact ---
 COPY --from=wlr-which-key-build /out/ /
+
+# --- Optional Umbriel session: Umbriel + portal (built above) + Noctalia ---
+# Adds "Umbriel" to the login screen's session list next to GNOME and niri; nothing else
+# changes. Everything for it lives in this section and the umbriel-build stage, so reverting
+# that one commit takes it out again.
+#   - Umbriel's own files: start-umbriel (re-enters the login shell, so ~/.local/bin is on
+#     PATH), the wayland-sessions entry, umbriel.service and umbriel-session.target.
+#   - The portal's umbriel-portals.conf is replaced with one that also routes Secret to
+#     gnome-keyring (see files/umbriel-portals.conf).
+#   - noctalia (Fedora's own package) is the shell. Fedora ships no unit for it, so
+#     files/noctalia.service is wanted by umbriel-session.target only, via a symlink in /usr:
+#     it never starts under niri (DMS) or GNOME.
+#   - Runtime libraries the built binaries need, listed explicitly even though the Silverblue
+#     desktop stack already brings most of them (wlroots, tomlplusplus, jemalloc and lcms2
+#     it doesn't).
+#   - python3-tomlkit: dotfiles-azir's rl-noctalia-capture (Azir Menu → Capture Noctalia
+#     settings) edits TOML while keeping its comments.
+COPY --from=umbriel-build /out/ /
+COPY files/umbriel-portals.conf /usr/share/xdg-desktop-portal/umbriel-portals.conf
+COPY files/noctalia.service /usr/lib/systemd/user/noctalia.service
+RUN dnf5 -y install noctalia python3-tomlkit \
+      wlroots tomlplusplus jemalloc lcms2 libinput pixman libdrm mesa-libgbm libglvnd-egl \
+      libglvnd-gles cairo pango gtk4 pipewire-libs libxkbcommon xorg-x11-server-Xwayland \
+ && mkdir -p /usr/lib/systemd/user/umbriel-session.target.wants \
+ && ln -sf ../noctalia.service /usr/lib/systemd/user/umbriel-session.target.wants/noctalia.service \
+ && dnf5 clean all
+
+# Guard for the Umbriel session, kept next to it (and out of the app-layer guard) so the
+# whole feature stays one revertable block.
+RUN set -e; \
+    rpm -q noctalia python3-tomlkit wlroots >/dev/null; \
+    built="$(cat /usr/share/umbriel/azir-built-against-wlroots)"; \
+    have="$(rpm -q --qf '%{VERSION}-%{RELEASE}' wlroots)"; \
+    [ "$built" = "$have" ] \
+      || { echo "ERROR: Umbriel was built against wlroots $built but the image has $have — umbrielfx uses wlroots' private struct layouts, so these must match" >&2; exit 1; }; \
+    for b in /usr/bin/umbriel /usr/libexec/xdg-desktop-portal-umbriel /usr/libexec/umbriel-share-picker; do \
+      test -x "$b" || { echo "ERROR: $b missing" >&2; exit 1; }; \
+      ! ldd "$b" | grep -q 'not found' \
+        || { echo "ERROR: $b has unresolved libraries" >&2; ldd "$b" | grep 'not found' >&2; exit 1; }; \
+    done; \
+    test -f /usr/share/wayland-sessions/umbriel.desktop || { echo "ERROR: Umbriel session entry missing" >&2; exit 1; }; \
+    test -f /usr/lib/systemd/user/umbriel-session.target || { echo "ERROR: umbriel-session.target missing" >&2; exit 1; }; \
+    [ "$(readlink -f /usr/lib/systemd/user/umbriel-session.target.wants/noctalia.service)" = /usr/lib/systemd/user/noctalia.service ] \
+      || { echo "ERROR: noctalia.service is not wanted by umbriel-session.target" >&2; exit 1; }; \
+    grep -qx 'org.freedesktop.impl.portal.Secret=gnome-keyring' /usr/share/xdg-desktop-portal/umbriel-portals.conf \
+      || { echo "ERROR: umbriel-portals.conf lost its Secret → gnome-keyring routing" >&2; exit 1; }; \
+    test -f /usr/share/xdg-desktop-portal/portals/gnome-keyring.portal || { echo "ERROR: gnome-keyring's portal is missing" >&2; exit 1; }; \
+    command -v Xwayland >/dev/null || { echo "ERROR: Xwayland missing (Umbriel's X11 support)" >&2; exit 1; }; \
+    echo "Umbriel session OK: umbriel built against wlroots $built, noctalia $(rpm -q --qf '%{VERSION}' noctalia)"
 
 # --- Tailscale ---
 RUN dnf5 -y install tailscale \
