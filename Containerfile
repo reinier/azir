@@ -169,6 +169,29 @@ RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc \
  && rm -f /etc/yum.repos.d/vscode.repo \
  && dnf5 clean all
 
+# --- Microsoft Edge ---
+# A second browser next to Chromium, matching config-nixos (2026-10). Same /opt dance as
+# 1Password: the payload lands in /opt/microsoft/msedge, gets relocated into /usr/lib/opt,
+# and tmpfiles recreates /opt/microsoft at boot. msedge-sandbox ships setuid root (re-set
+# after the move, checked in the guard). Its postinstall's device-trust setup (msedgemgmt
+# group, a signing key under /etc/opt) only runs when an enterprise defaults file asks for it,
+# so on a plain install it does nothing (checked on 155.0). The postinstall DOES re-add
+# /etc/yum.repos.d/microsoft-edge.repo and install /etc/cron.daily/microsoft-edge, which would
+# re-add it daily; both are removed so updates come only with image rebuilds.
+COPY files/microsoft-edge.repo /etc/yum.repos.d/microsoft-edge.repo
+RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc \
+ && opt_link="$(readlink /opt)" \
+ && rm /opt && mkdir /opt \
+ && dnf5 -y install microsoft-edge-stable \
+ && rm -f /etc/yum.repos.d/microsoft-edge.repo /etc/cron.daily/microsoft-edge \
+ && mkdir -p /usr/lib/opt \
+ && mv /opt/microsoft /usr/lib/opt/microsoft \
+ && rmdir /opt \
+ && ln -s "$opt_link" /opt \
+ && chmod 4755 /usr/lib/opt/microsoft/msedge/msedge-sandbox \
+ && dnf5 clean all
+COPY files/microsoft-edge-opt.conf /usr/lib/tmpfiles.d/microsoft-edge-opt.conf
+
 # --- CLI toolkit (Azir-only remainder) ---
 # Roshar's own base already covers ripgrep/fzf/bat/eza/fastfetch/btop/git-core/wl-clipboard/
 # chezmoi (its CLI toolkit) and ddcutil (bundled into its niri/dms install line). What's left
@@ -273,7 +296,7 @@ RUN set -e; \
 # Guard for the whole app layer. First rpm -q group is installed by this layer; second is
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
-    rpm -q chromium 1password 1password-cli code \
+    rpm -q chromium 1password 1password-cli code microsoft-edge-stable \
            fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype kitty tmux gum podman-docker docker-compose \
            starship yazi tailscale \
            libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
@@ -288,6 +311,11 @@ RUN set -e; \
     test -g /usr/bin/op || { echo "ERROR: op lost its setgid bit" >&2; exit 1; }; \
     test -u /usr/share/code/chrome-sandbox || { echo "ERROR: VS Code's chrome-sandbox lost its setuid bit" >&2; exit 1; }; \
     ! ls /etc/yum.repos.d/ | grep -qiE "^(vscode|code)\.repo$" || { echo "ERROR: a VS Code repo file was left in the image" >&2; exit 1; }; \
+    test -d /usr/lib/opt/microsoft/msedge || { echo "ERROR: Edge payload not relocated into /usr" >&2; exit 1; }; \
+    test -u /usr/lib/opt/microsoft/msedge/msedge-sandbox || { echo "ERROR: msedge-sandbox lost its setuid bit" >&2; exit 1; }; \
+    test -f /usr/lib/tmpfiles.d/microsoft-edge-opt.conf || { echo "ERROR: Edge /opt tmpfiles entry missing" >&2; exit 1; }; \
+    ! test -e /etc/yum.repos.d/microsoft-edge.repo && ! test -e /etc/cron.daily/microsoft-edge \
+      || { echo "ERROR: Edge's repo file or its cron job (which re-adds it) was left in the image" >&2; exit 1; }; \
     test -f /usr/lib/sysusers.d/1password-azir.conf || { echo "ERROR: 1password sysusers drop-in missing" >&2; exit 1; }; \
     getent group onepassword     | grep -q ':1500:' || { echo "ERROR: onepassword group not at fixed gid 1500 (must be >=1000)" >&2; exit 1; }; \
     getent group onepassword-cli | grep -q ':1501:' || { echo "ERROR: onepassword-cli group not at fixed gid 1501" >&2; exit 1; }; \
@@ -307,7 +335,7 @@ RUN set -e; \
     test -f /usr/lib/systemd/system/keyd.service || { echo "ERROR: keyd.service missing — FORCE_SYSTEMD did not take" >&2; exit 1; }; \
     test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing (should be inherited from roshar)" >&2; exit 1; }; \
     systemctl is-enabled tailscaled.service >/dev/null || { echo "ERROR: tailscaled is not enabled" >&2; exit 1; }; \
-    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), code $(rpm -q --qf '%{VERSION}' code), 1password $(rpm -q --qf '%{VERSION}' 1password), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
+    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), code $(rpm -q --qf '%{VERSION}' code), edge $(rpm -q --qf '%{VERSION}' microsoft-edge-stable), 1password $(rpm -q --qf '%{VERSION}' 1password), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
 
 # --- Update policy: manual only ---
 # Roshar's own base already masks both timers; just re-verify the mask survived inheritance.
