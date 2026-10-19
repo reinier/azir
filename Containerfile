@@ -155,6 +155,20 @@ RUN rpm --import https://downloads.1password.com/linux/keys/1password.asc \
 COPY files/1password-opt.conf /usr/lib/tmpfiles.d/1password-opt.conf
 COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 
+# --- VS Code (Microsoft's build) ---
+# Replaced the VSCodium Flatpak (2026-10), matching config-nixos. Native rather than Flatpak:
+# from inside the Flatpak sandbox the host's podman/docker and distrobox aren't on PATH,
+# which breaks Dev Containers (dotfiles-azir installs that extension, plus nix-ide).
+# Installs to /usr/share/code, so unlike 1Password no /opt relocation is needed; its
+# chrome-sandbox ships setuid root, checked in the guard below. Its postinstall no longer
+# writes a repo file of its own (checked on 1.142), and the one copied here is removed again,
+# so updates arrive with image rebuilds, like everything else.
+COPY files/vscode.repo /etc/yum.repos.d/vscode.repo
+RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc \
+ && dnf5 -y install code \
+ && rm -f /etc/yum.repos.d/vscode.repo \
+ && dnf5 clean all
+
 # --- CLI toolkit (Azir-only remainder) ---
 # Roshar's own base already covers ripgrep/fzf/bat/eza/fastfetch/btop/git-core/wl-clipboard/
 # chezmoi (its CLI toolkit) and ddcutil (bundled into its niri/dms install line). What's left
@@ -259,7 +273,7 @@ RUN set -e; \
 # Guard for the whole app layer. First rpm -q group is installed by this layer; second is
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
-    rpm -q chromium 1password 1password-cli \
+    rpm -q chromium 1password 1password-cli code \
            fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype kitty tmux gum podman-docker docker-compose \
            starship yazi tailscale \
            libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
@@ -272,6 +286,8 @@ RUN set -e; \
     test -u /usr/lib/opt/1Password/chrome-sandbox || { echo "ERROR: chrome-sandbox lost its setuid bit" >&2; exit 1; }; \
     test -g /usr/lib/opt/1Password/1Password-BrowserSupport || { echo "ERROR: 1Password-BrowserSupport lost its setgid bit" >&2; exit 1; }; \
     test -g /usr/bin/op || { echo "ERROR: op lost its setgid bit" >&2; exit 1; }; \
+    test -u /usr/share/code/chrome-sandbox || { echo "ERROR: VS Code's chrome-sandbox lost its setuid bit" >&2; exit 1; }; \
+    ! ls /etc/yum.repos.d/ | grep -qiE "^(vscode|code)\.repo$" || { echo "ERROR: a VS Code repo file was left in the image" >&2; exit 1; }; \
     test -f /usr/lib/sysusers.d/1password-azir.conf || { echo "ERROR: 1password sysusers drop-in missing" >&2; exit 1; }; \
     getent group onepassword     | grep -q ':1500:' || { echo "ERROR: onepassword group not at fixed gid 1500 (must be >=1000)" >&2; exit 1; }; \
     getent group onepassword-cli | grep -q ':1501:' || { echo "ERROR: onepassword-cli group not at fixed gid 1501" >&2; exit 1; }; \
@@ -291,7 +307,7 @@ RUN set -e; \
     test -f /usr/lib/systemd/system/keyd.service || { echo "ERROR: keyd.service missing — FORCE_SYSTEMD did not take" >&2; exit 1; }; \
     test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing (should be inherited from roshar)" >&2; exit 1; }; \
     systemctl is-enabled tailscaled.service >/dev/null || { echo "ERROR: tailscaled is not enabled" >&2; exit 1; }; \
-    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), 1password $(rpm -q --qf '%{VERSION}' 1password), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
+    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), code $(rpm -q --qf '%{VERSION}' code), 1password $(rpm -q --qf '%{VERSION}' 1password), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
 
 # --- Update policy: manual only ---
 # Roshar's own base already masks both timers; just re-verify the mask survived inheritance.

@@ -38,7 +38,7 @@ printing, firmware updates, keyring):
 - **A second desktop** — niri + DankMaterialShell, with the Kitty terminal and
   xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
 - **Browser** — Chromium with full media codecs (Firefox is stripped — reinstall as a Flatpak if you want it back).
-- **Apps** — 1Password (+ CLI), Tailscale.
+- **Apps** — 1Password (+ CLI), VS Code, Tailscale.
 - **Input** — keyd for tap-hold key remaps; wlr-which-key for the leader menu.
 - **Terminal toolkit** — fish, starship, eza, bat, yazi; distrobox for ad-hoc tooling.
 - **Containers** — rootless Podman, with `docker` and `docker compose` as stand-ins (no Docker daemon).
