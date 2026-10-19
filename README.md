@@ -41,6 +41,7 @@ printing, firmware updates, keyring):
 - **Apps** — 1Password (+ CLI), Tailscale.
 - **Input** — keyd for tap-hold key remaps; wlr-which-key for the leader menu.
 - **Terminal toolkit** — fish, starship, eza, bat, yazi; distrobox for ad-hoc tooling.
+- **Containers** — rootless Podman, with `docker` and `docker compose` as stand-ins (no Docker daemon).
 
 ## Updating
 

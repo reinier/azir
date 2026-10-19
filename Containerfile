@@ -167,10 +167,7 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # compatibility claim). Bound to Mod+Ctrl+F12 in dotfiles-azir's local/binds.kdl. wtype:
 # Wayland key-injection tool, needed by voxtype's (dictation, dotfiles-fetched AppImage —
 # see dotfiles-azir) "type" output mode; niche enough to voxtype specifically that it stays
-# here rather than in Roshar's own generic wl-clipboard-tier utilities. podman-compose: podman
-# itself comes from Silverblue's base image already (distrobox needs it); this just adds the
-# compose provider `podman compose` looks for, needed to run the plaiground repo's rl-devbox
-# devcontainer (docker/docker-compose.yml there) via Podman instead of Docker. kitty: the
+# here rather than in Roshar's own generic wl-clipboard-tier utilities. kitty: the
 # terminal (replaced ghostty, 2026-09-23) — Fedora packages it, so unlike ghostty it needs no
 # Terra and sits on this line instead of the one below. tmux: terminal multiplexer, mainly for
 # persistent sessions over SSH into Azir — host-native rather than in the apps distrobox so it
@@ -179,8 +176,30 @@ COPY files/60-1password-ptrace.conf /usr/lib/sysctl.d/60-1password-ptrace.conf
 # rollback, changelog, Flatpak/distrobox/dotfiles/firmware updates). Host-native, not in the
 # apps distrobox: the menu's whole job is updating the host and that distrobox, so it can't
 # depend on either being healthy. Fedora packages it, no COPR needed.
-RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty tmux gum \
+RUN dnf5 -y install fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype kitty tmux gum \
  && dnf5 clean all
+
+# --- Containers: rootless Podman with a `docker` stand-in ---
+# Same setup as config-nixos's containers.nix: rootless Podman only, no Docker daemon. podman
+# itself comes from the Silverblue base (distrobox needs it).
+#   podman-docker  — `docker` on PATH is podman, so `docker run/build/exec` and READMEs written
+#     for Docker just work. /etc/containers/nodocker silences the "Emulate Docker CLI" notice
+#     its wrapper otherwise prints on every call; files/50-azir-compose.conf does the same for
+#     podman's "Executing external compose provider" banner on every compose call.
+#   docker-compose — the compose provider, for both `docker compose` and `podman compose`
+#     (podman prefers it over podman-compose, which this replaces, like config-nixos). It
+#     talks to the rootless Podman socket through DOCKER_HOST, which dotfiles-azir sets and
+#     whose socket unit it enables, along with podman-restart.service and linger, so
+#     `restart: always` containers come back after a reboot.
+# Not a rootful socket: podman-docker's own system tmpfiles link /run/docker.sock →
+# /run/podman/podman.sock stays dangling, since the system podman.socket is never enabled.
+# A rootful socket would be a separate image store from the `docker` commands run as the user.
+RUN dnf5 -y install podman-docker docker-compose \
+ && mkdir -p /etc/containers \
+ && touch /etc/containers/nodocker \
+ && dnf5 clean all
+COPY files/50-azir-compose.conf /etc/containers/containers.conf.d/50-azir-compose.conf
+
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # starship/yazi: neither is packaged by Fedora, and neither is in Roshar.
 RUN dnf5 -y install starship yazi \
@@ -241,7 +260,7 @@ RUN set -e; \
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
     rpm -q chromium 1password 1password-cli \
-           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype podman-compose kitty tmux gum \
+           fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype kitty tmux gum podman-docker docker-compose \
            starship yazi tailscale \
            libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
     rpm -q --whatprovides heif-pixbuf-loader >/dev/null 2>&1 \
@@ -263,6 +282,12 @@ RUN set -e; \
     command -v wlr-which-key >/dev/null || { echo "ERROR: wlr-which-key binary missing" >&2; exit 1; }; \
     ! ldd /usr/bin/wlr-which-key | grep -q 'not found' \
       || { echo "ERROR: wlr-which-key has unresolved libraries" >&2; ldd /usr/bin/wlr-which-key >&2; exit 1; }; \
+    [ "$(readlink -f "$(command -v docker)")" = /usr/bin/docker ] && grep -q "exec /usr/bin/podman" /usr/bin/docker \
+      || { echo "ERROR: docker is not podman-docker's podman wrapper" >&2; exit 1; }; \
+    test -e /etc/containers/nodocker || { echo "ERROR: /etc/containers/nodocker missing — every docker call would print a notice" >&2; exit 1; }; \
+    test -f /etc/containers/containers.conf.d/50-azir-compose.conf || { echo "ERROR: compose banner drop-in missing" >&2; exit 1; }; \
+    test -f /usr/lib/systemd/user/podman.socket && test -f /usr/lib/systemd/user/podman-restart.service \
+      || { echo "ERROR: podman user units missing — dotfiles-azir enables both" >&2; exit 1; }; \
     test -f /usr/lib/systemd/system/keyd.service || { echo "ERROR: keyd.service missing — FORCE_SYSTEMD did not take" >&2; exit 1; }; \
     test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing (should be inherited from roshar)" >&2; exit 1; }; \
     systemctl is-enabled tailscaled.service >/dev/null || { echo "ERROR: tailscaled is not enabled" >&2; exit 1; }; \
