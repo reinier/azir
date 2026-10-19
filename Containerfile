@@ -8,7 +8,7 @@
 #
 # DMS is NOT `--global` enabled (inherited decision, unchanged) — the dotfiles spawn it from
 # niri, so it only runs in the niri session, never leaking into GNOME.
-# No wlr-which-key here — DMS provides dank-lader as its leader menu.
+# The leader menu is wlr-which-key (built from source below), not DMS's dank-lader plugin.
 
 # --- keyd: built from source, pinned to an exact upstream commit ---
 # Commit, not just tag (backlog 0006): keyd runs as root and sees every keystroke, and upstream
@@ -25,6 +25,26 @@ RUN dnf5 -y install git make gcc kernel-headers \
       || { echo "ERROR: keyd $KEYD_VERSION is $actual, expected pinned $KEYD_COMMIT" >&2; exit 1; }; } \
  && make -C /src PREFIX=/usr \
  && make -C /src PREFIX=/usr DESTDIR=/out FORCE_SYSTEMD=1 install
+
+# --- wlr-which-key: built from source, pinned to an exact upstream commit ---
+# The leader menu (dotfiles-azir: rl-which-key on Mod+F12, i.e. a Super tap via keyd). Fedora
+# doesn't package it. Pinned like keyd, and to the same version as config-nixos's
+# wlr-which-key.nix, so the menu only changes when bumped on purpose: 1.2.0 already changed the
+# config format once. `--locked` builds against upstream's own Cargo.lock. Its runtime libraries
+# (cairo, pango, glib2, libxkbcommon) are all in the Silverblue base. To bump: read the
+# upstream changelog, check dotfiles-azir's config.yaml against the new README, then update
+# both ARGs.
+FROM registry.fedoraproject.org/fedora:44 AS wlr-which-key-build
+ARG WLR_WHICH_KEY_VERSION=v1.3.0
+ARG WLR_WHICH_KEY_COMMIT=6d66599f0a7ff5f71b81fd402de1c3e6f390ac13
+RUN dnf5 -y install git cargo rust pkgconf-pkg-config cairo-devel cairo-gobject-devel pango-devel \
+      glib2-devel libxkbcommon-devel \
+ && git clone --depth 1 --branch "$WLR_WHICH_KEY_VERSION" https://github.com/MaxVerevkin/wlr-which-key /src \
+ && actual="$(git -C /src rev-parse HEAD)" \
+ && { [ "$actual" = "$WLR_WHICH_KEY_COMMIT" ] \
+      || { echo "ERROR: wlr-which-key $WLR_WHICH_KEY_VERSION is $actual, expected pinned $WLR_WHICH_KEY_COMMIT" >&2; exit 1; }; } \
+ && cargo build --release --locked --manifest-path /src/Cargo.toml \
+ && install -D -m 755 /src/target/release/wlr-which-key /out/usr/bin/wlr-which-key
 
 # Roshar — niri + DMS + quickshell + CLI toolkit subset + Flathub + distrobox + signing/trust,
 # all already baked and guarded there. GNOME + GDM stay (inherited, additive).
@@ -170,6 +190,9 @@ RUN dnf5 -y install starship yazi \
 # --- keyd artifacts ---
 COPY --from=keyd-build /out/ /
 
+# --- wlr-which-key artifact ---
+COPY --from=wlr-which-key-build /out/ /
+
 # --- Tailscale ---
 RUN dnf5 -y install tailscale \
  && systemctl enable tailscaled.service \
@@ -237,6 +260,9 @@ RUN set -e; \
     [ "$(stat -c %g /usr/bin/op)" = 1501 ] || { echo "ERROR: op setgid not onepassword-cli(1501)" >&2; exit 1; }; \
     test -f /usr/lib/sysctl.d/60-1password-ptrace.conf || { echo "ERROR: ptrace_scope drop-in missing" >&2; exit 1; }; \
     command -v keyd >/dev/null || { echo "ERROR: keyd binary missing" >&2; exit 1; }; \
+    command -v wlr-which-key >/dev/null || { echo "ERROR: wlr-which-key binary missing" >&2; exit 1; }; \
+    ! ldd /usr/bin/wlr-which-key | grep -q 'not found' \
+      || { echo "ERROR: wlr-which-key has unresolved libraries" >&2; ldd /usr/bin/wlr-which-key >&2; exit 1; }; \
     test -f /usr/lib/systemd/system/keyd.service || { echo "ERROR: keyd.service missing — FORCE_SYSTEMD did not take" >&2; exit 1; }; \
     test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing (should be inherited from roshar)" >&2; exit 1; }; \
     systemctl is-enabled tailscaled.service >/dev/null || { echo "ERROR: tailscaled is not enabled" >&2; exit 1; }; \

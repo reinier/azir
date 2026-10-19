@@ -3,8 +3,9 @@
 Azir is a personal Fedora **Silverblue**-based atomic desktop. It keeps the full GNOME
 desktop and adds **[niri](https://github.com/YaLTeR/niri)** — a scrollable-tiling Wayland
 compositor — driven by **[DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell)**
-(bar, launcher, notifications, lock, and a dank-lader leader menu). Pick **GNOME** or **Niri**
-at the login screen.
+(bar, launcher, notifications, lock), with a
+[wlr-which-key](https://github.com/MaxVerevkin/wlr-which-key) leader menu. Pick **GNOME** or
+**Niri** at the login screen.
 
 **What "atomic" means:** the whole OS is a single image. Updates swap in a new image; if one
 breaks, `bootc rollback` returns to the previous one in a single step. Every machine runs the
@@ -38,7 +39,7 @@ printing, firmware updates, keyring):
   xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
 - **Browser** — Chromium with full media codecs (Firefox is stripped — reinstall as a Flatpak if you want it back).
 - **Apps** — 1Password (+ CLI), Tailscale.
-- **Input** — keyd for tap-hold key remaps.
+- **Input** — keyd for tap-hold key remaps; wlr-which-key for the leader menu.
 - **Terminal toolkit** — fish, starship, eza, bat, yazi; distrobox for ad-hoc tooling.
 
 ## Updating
