@@ -34,6 +34,10 @@ stanza. Most items are "ported from X"; this backlog is short.
    `dotfiles-azir`'s `rl-menu` ("Azir Menu"); see `dotfiles-azir` `0013`.
 6. [0006-keyd-commit-pin.md](0006-keyd-commit-pin.md) — **done.** keyd build checks the
    `v2.6.0` tag still resolves to commit `7c0aecb` (supply-chain pin, from config-nixos).
+7. [0007-local-build-and-switch.md](0007-local-build-and-switch.md) — open. Self-build
+   fallback: build Azir as root with podman, `bootc switch --transport containers-storage`
+   to it, update, switch back; plus a `ROSHAR_IMAGE` build argument so Azir can build on a
+   local Roshar (`roshar` `0006`).
 
 ## Ported wholesale (see Steen / Tashikk for reasoning) — Azir-only remainder
 
