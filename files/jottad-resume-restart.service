@@ -1,0 +1,17 @@
+# Restart jottad after a resume (from config-nixos's common.nix). jottad wedges after a
+# suspend: its requests time out for a minute or so, it drops its event stream, starts a
+# full sync check and hangs in "loading sources" for good. Still "active (running)", but
+# `jotta-cli status` says "did not respond to query within deadline". A restart fixes it,
+# but only once Jottacloud answers, or the fresh daemon walks into the same timeouts.
+# jottad is a user unit; the script restarts it for whichever users have it running, so
+# the image doesn't need to know the user name (config-nixos hardcodes rl).
+[Unit]
+Description=Restart jottad after resume
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/azir/jottad-resume-restart
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

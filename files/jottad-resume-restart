@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+# Run by jottad-resume-restart.service after every resume; see that unit for why.
+# Waits up to 5 minutes for Jottacloud to answer, then restarts jottad for every
+# logged-in or lingering user whose jottad is running.
+for _ in $(seq 30); do
+  curl -s -o /dev/null --max-time 10 https://id.jottacloud.com/ && break
+  sleep 10
+done
+for user in $(loginctl list-users --no-legend | awk '{print $2}'); do
+  if systemctl --user --machine="$user@" -q is-active jottad.service; then
+    systemctl --user --machine="$user@" --no-block restart jottad.service
+  fi
+done
+exit 0

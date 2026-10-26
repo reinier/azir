@@ -240,6 +240,34 @@ RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc \
  && dnf5 clean all
 COPY files/microsoft-edge-opt.conf /usr/lib/tmpfiles.d/microsoft-edge-opt.conf
 
+# --- Jottacloud CLI (jotta-cli + jottad) ---
+# File sync between systems, replacing the Nextcloud Flatpak (2026-10), matching
+# config-nixos's services.jotta-cli. Jottacloud's own RPM: jotta-cli, jottad and a jottad
+# user unit (WantedBy default.target), enabled globally here so with linger (dotfiles-azir
+# enables it for Podman) it runs from boot, no login needed. Login and the sync folder stay
+# manual per machine (`jotta-cli login`, `jotta-cli sync setup`), in jottad's own state
+# under ~/.jottad. jottad-resume-restart.service restarts it after a resume, which it
+# doesn't survive.
+# Pinned by version + sha256 instead of installed from Jottacloud's repo: its RPMs are
+# signed with an EdDSA key (068CACA1BBF96E71) that it doesn't publish (public.asc and
+# public.gpg both hold only the 2017 RSA key, checked 2026-10-26), so gpgcheck can't pass.
+# nixpkgs pins its tarball by hash too. The hash is the repo metadata's (redhat/repodata
+# primary.xml). To bump: take the new version and its x86_64 sha256 from there. The
+# postinstall only restarts jottad processes that are already running, so it does nothing
+# here.
+ARG JOTTA_CLI_VERSION=0.17.176206
+ARG JOTTA_CLI_SHA256=027d77e6fc215c1448d659ee977148c1f4f0e92247f2912a4e29f95f702421c4
+COPY files/jottad-resume-restart /usr/libexec/azir/jottad-resume-restart
+COPY files/jottad-resume-restart.service /usr/lib/systemd/system/jottad-resume-restart.service
+RUN curl -fsSL -o /tmp/jotta-cli.rpm \
+      "https://repo.jotta.cloud/redhat/jotta-cli-${JOTTA_CLI_VERSION}-1.x86_64.rpm" \
+ && echo "${JOTTA_CLI_SHA256}  /tmp/jotta-cli.rpm" | sha256sum -c - \
+ && dnf5 -y install --nogpgcheck /tmp/jotta-cli.rpm \
+ && rm -f /tmp/jotta-cli.rpm \
+ && systemctl --global enable jottad.service \
+ && systemctl enable jottad-resume-restart.service \
+ && dnf5 clean all
+
 # --- CLI toolkit (Azir-only remainder) ---
 # Roshar's own base already covers ripgrep/fzf/bat/eza/fastfetch/btop/git-core/wl-clipboard/
 # chezmoi (its CLI toolkit) and ddcutil (bundled into its niri/dms install line). What's left
@@ -393,7 +421,7 @@ RUN set -e; \
 # Guard for the whole app layer. First rpm -q group is installed by this layer; second is
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
 RUN set -e; \
-    rpm -q chromium 1password 1password-cli code microsoft-edge-stable \
+    rpm -q chromium 1password 1password-cli code microsoft-edge-stable jotta-cli \
            fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype kitty tmux gum podman-docker docker-compose \
            starship yazi tailscale \
            libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
@@ -433,7 +461,10 @@ RUN set -e; \
     test -f /usr/lib/systemd/system/keyd.service || { echo "ERROR: keyd.service missing — FORCE_SYSTEMD did not take" >&2; exit 1; }; \
     test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing (should be inherited from roshar)" >&2; exit 1; }; \
     systemctl is-enabled tailscaled.service >/dev/null || { echo "ERROR: tailscaled is not enabled" >&2; exit 1; }; \
-    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), code $(rpm -q --qf '%{VERSION}' code), edge $(rpm -q --qf '%{VERSION}' microsoft-edge-stable), 1password $(rpm -q --qf '%{VERSION}' 1password), tailscale $(rpm -q --qf '%{VERSION}' tailscale)"
+    systemctl --global is-enabled jottad.service >/dev/null || { echo "ERROR: jottad user unit is not enabled globally" >&2; exit 1; }; \
+    systemctl is-enabled jottad-resume-restart.service >/dev/null || { echo "ERROR: jottad-resume-restart is not enabled" >&2; exit 1; }; \
+    test -x /usr/libexec/azir/jottad-resume-restart || { echo "ERROR: jottad-resume-restart script missing or not executable" >&2; exit 1; }; \
+    echo "apps OK: chromium $(rpm -q --qf '%{VERSION}' chromium), code $(rpm -q --qf '%{VERSION}' code), edge $(rpm -q --qf '%{VERSION}' microsoft-edge-stable), 1password $(rpm -q --qf '%{VERSION}' 1password), tailscale $(rpm -q --qf '%{VERSION}' tailscale), jotta-cli $(rpm -q --qf '%{VERSION}' jotta-cli)"
 
 # --- Update policy: manual only ---
 # Roshar's own base already masks both timers; just re-verify the mask survived inheritance.
