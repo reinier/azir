@@ -1,6 +1,7 @@
 # Pin keyd to an exact upstream commit
 
-- **Status:** done
+- **Status:** superseded (2026-11-02): keyd is gone from the image. A bare Mod tap is now
+  a native niri bind, from the niri-git COPR (parity backlog 0018).
 - **Created:** 2026-10-06
 - **Area:** image (`Containerfile`, `keyd-build` stage)
 - **Related:** `config-nixos` backlog 0035 (supply-chain audit) and its `keyd.nix`;

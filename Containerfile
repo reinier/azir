@@ -3,7 +3,7 @@
 # Azir is the personal layer on top of Roshar (github.com/reinier/roshar): the bare,
 # reusable niri+DMS-on-Silverblue core — repo install, quickshell provenance guard, additive
 # session, CLI toolkit subset, Flathub remote, distrobox, signing/trust — all lives there now.
-# This Containerfile only adds what's Azir-specific on top: 1Password, Chromium+codecs, keyd,
+# This Containerfile only adds what's Azir-specific on top: niri from git main, 1Password, Chromium+codecs,
 # Tailscale, kitty/starship/yazi, and the personal CLI remainder Roshar doesn't cover.
 #
 # DMS is NOT `--global` enabled (inherited decision, unchanged) — the dotfiles spawn it from
@@ -15,25 +15,9 @@
 # 0007). Declared before the first FROM so the Roshar FROM below can use it.
 ARG ROSHAR_IMAGE=ghcr.io/reinier/roshar:latest
 
-# --- keyd: built from source, pinned to an exact upstream commit ---
-# Commit, not just tag (backlog 0006): keyd runs as root and sees every keystroke, and upstream
-# is effectively one maintainer. A tag can be re-pointed upstream; the commit check below fails
-# the build if v2.6.0 ever stops meaning the code that was reviewed. Same pin as config-nixos's
-# keyd.nix. To bump: read github.com/rvaiya/keyd/compare/<old>...<new>, then update both ARGs.
-FROM registry.fedoraproject.org/fedora:44 AS keyd-build
-ARG KEYD_VERSION=v2.6.0
-ARG KEYD_COMMIT=7c0aecb8bfd34dc8642bf4eefd2e59c89e61cec3
-RUN dnf5 -y install git make gcc kernel-headers \
- && git clone --depth 1 --branch "$KEYD_VERSION" https://github.com/rvaiya/keyd /src \
- && actual="$(git -C /src rev-parse HEAD)" \
- && { [ "$actual" = "$KEYD_COMMIT" ] \
-      || { echo "ERROR: keyd $KEYD_VERSION is $actual, expected pinned $KEYD_COMMIT" >&2; exit 1; }; } \
- && make -C /src PREFIX=/usr \
- && make -C /src PREFIX=/usr DESTDIR=/out FORCE_SYSTEMD=1 install
-
 # --- wlr-which-key: built from source, pinned to an exact upstream commit ---
-# The leader menu (dotfiles-azir: rl-which-key on Mod+F12, i.e. a Super tap via keyd). Fedora
-# doesn't package it. Pinned like keyd, and to the same version as config-nixos's
+# The leader menu (dotfiles-azir: rl-which-key on a bare Mod tap or F19). Fedora doesn't
+# package it. Pinned to an exact commit, and to the same version as config-nixos's
 # wlr-which-key.nix, so the menu only changes when bumped on purpose: 1.2.0 already changed the
 # config format once. `--locked` builds against upstream's own Cargo.lock. Its runtime libraries
 # (cairo, pango, glib2, libxkbcommon) are all in the Silverblue base. To bump: read the
@@ -109,6 +93,36 @@ RUN set -e; \
            pipewire wireplumber NetworkManager >/dev/null \
       || { echo "ERROR: GNOME/plumbing missing from the roshar base" >&2; exit 1; }; \
     echo "inherited from roshar: niri $(rpm -q --qf '%{VERSION}' niri), dms $(rpm -q --qf '%{VERSION}' dms), quickshell $(rpm -q --qf '%{VERSION}' quickshell) [${qs_repo}]"
+
+# --- niri: git main from the yalter/niri-git COPR, pinned to one build ---
+# Replaces Roshar's Fedora niri (Roshar itself stays on it). Azir needs two features that
+# aren't in a niri release yet: a modifier on its own as a bind trigger, and release-only
+# binds. Together they give dotfiles-azir's leader key, `Mod { release { ... } }`: a bare
+# Mod tap that fires only if nothing else was pressed, so every Mod+<key> bind still works.
+# That replaced keyd (config-nixos ebd1623, which runs niri main from niri's own flake).
+#
+# Pinned to one exact build, so niri only moves when NIRI_GIT_VERSION does. The git builds
+# version as 0.0.git.<count>.<sha>, LOWER than Fedora's release, so this is a downgrade as
+# far as rpm is concerned. No weak deps: niri recommends alacritty, fuzzel, mako, swaybg,
+# swayidle, swaylock and waybar, which DMS and GNOME already cover (as in Roshar). The repo
+# file is removed again, so the deployed system has no runtime COPR.
+#
+# The COPR prunes old builds (auto_prune; on 2026-11-02 only the four newest were left), so
+# a pinned build that has been pruned fails this step. Then bump: pick a newer build from
+# copr.fedorainfracloud.org/coprs/yalter/niri-git/builds/, check its niri commits, rebuild,
+# and `niri validate` dotfiles-azir's config against it.
+ARG NIRI_GIT_VERSION=0.0.git.3017.a8562a11-1.fc44
+COPY files/yalter-niri-git.repo /etc/yum.repos.d/yalter-niri-git.repo
+RUN dnf5 -y downgrade --setopt=install_weak_deps=False "niri-${NIRI_GIT_VERSION}" \
+ && rm -f /etc/yum.repos.d/yalter-niri-git.repo \
+ && dnf5 clean all \
+ && [ "$(rpm -q --qf '%{VERSION}-%{RELEASE}' niri)" = "$NIRI_GIT_VERSION" ] \
+      || { echo "ERROR: niri is $(rpm -q niri), expected the pinned niri-git $NIRI_GIT_VERSION" >&2; exit 1; } \
+ && test -f /usr/share/wayland-sessions/niri.desktop \
+      || { echo "ERROR: niri GDM session file missing after the niri-git swap" >&2; exit 1; } \
+ && extra="$(rpm -qa alacritty fuzzel mako swaybg swayidle swaylock waybar)" \
+ && { [ -z "$extra" ] || { echo "ERROR: niri-git pulled in its weak deps: $extra" >&2; exit 1; }; } \
+ && niri --version
 
 # --- JetBrainsMono Nerd Font ---
 ARG NERD_FONT_VERSION=v3.4.0
@@ -324,9 +338,6 @@ RUN dnf5 -y install starship yazi \
  && rm -f /etc/yum.repos.d/terra.repo \
  && dnf5 clean all
 
-# --- keyd artifacts ---
-COPY --from=keyd-build /out/ /
-
 # --- wlr-which-key artifact ---
 COPY --from=wlr-which-key-build /out/ /
 
@@ -453,7 +464,7 @@ RUN set -e; \
     [ "$(stat -c %g /usr/lib/opt/1Password/1Password-BrowserSupport)" = 1500 ] || { echo "ERROR: BrowserSupport setgid not onepassword(1500)" >&2; exit 1; }; \
     [ "$(stat -c %g /usr/bin/op)" = 1501 ] || { echo "ERROR: op setgid not onepassword-cli(1501)" >&2; exit 1; }; \
     test -f /usr/lib/sysctl.d/60-1password-ptrace.conf || { echo "ERROR: ptrace_scope drop-in missing" >&2; exit 1; }; \
-    command -v keyd >/dev/null || { echo "ERROR: keyd binary missing" >&2; exit 1; }; \
+    ! command -v keyd >/dev/null || { echo "ERROR: keyd is back in the image (dropped in parity backlog 0018)" >&2; exit 1; }; \
     command -v wlr-which-key >/dev/null || { echo "ERROR: wlr-which-key binary missing" >&2; exit 1; }; \
     ! ldd /usr/bin/wlr-which-key | grep -q 'not found' \
       || { echo "ERROR: wlr-which-key has unresolved libraries" >&2; ldd /usr/bin/wlr-which-key >&2; exit 1; }; \
@@ -463,7 +474,6 @@ RUN set -e; \
     test -f /etc/containers/containers.conf.d/50-azir-compose.conf || { echo "ERROR: compose banner drop-in missing" >&2; exit 1; }; \
     test -f /usr/lib/systemd/user/podman.socket && test -f /usr/lib/systemd/user/podman-restart.service \
       || { echo "ERROR: podman user units missing — dotfiles-azir enables both" >&2; exit 1; }; \
-    test -f /usr/lib/systemd/system/keyd.service || { echo "ERROR: keyd.service missing — FORCE_SYSTEMD did not take" >&2; exit 1; }; \
     test -s /etc/flatpak/remotes.d/flathub.flatpakrepo || { echo "ERROR: Flathub remote missing (should be inherited from roshar)" >&2; exit 1; }; \
     systemctl is-enabled tailscaled.service >/dev/null || { echo "ERROR: tailscaled is not enabled" >&2; exit 1; }; \
     systemctl --global is-enabled jottad.service >/dev/null || { echo "ERROR: jottad user unit is not enabled globally" >&2; exit 1; }; \

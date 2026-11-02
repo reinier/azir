@@ -13,7 +13,7 @@ exact same thing.
 
 Built on **[Roshar](https://github.com/reinier/roshar)** — the bare, generic niri+DMS-on-
 Silverblue base, also independently rebase-able on its own. Azir adds the personal layer on
-top: 1Password, Chromium, keyd, Tailscale, and a few CLI extras.
+top: niri from git main, 1Password, Chromium, Tailscale, and a few CLI extras.
 
 ## Install
 
@@ -35,11 +35,14 @@ kitty, so rebind it in `~/.config/niri/local.kdl` (my dotfiles take care of this
 On top of everything Silverblue already provides (GNOME, GDM, GNOME Software, PipeWire,
 printing, firmware updates, keyring):
 
-- **A second desktop** — niri + DankMaterialShell, with the Kitty terminal and
+- **A second desktop** — niri + DankMaterialShell, with niri built from git main (the
+  pinned [niri-git COPR](https://copr.fedorainfracloud.org/coprs/yalter/niri-git/) build,
+  not Fedora's release) for its bare-modifier binds, plus the Kitty terminal and
   xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
 - **Browsers** — Chromium with full media codecs, plus Microsoft Edge (Firefox is stripped — reinstall as a Flatpak if you want it back).
 - **Apps** — 1Password (+ CLI), VS Code, Tailscale.
-- **Input** — keyd for tap-hold key remaps; wlr-which-key for the leader menu.
+- **Input** — wlr-which-key for the leader menu, opened by a bare Mod tap (a niri
+  release bind; no keyd).
 - **Terminal toolkit** — fish, starship, eza, bat, yazi; distrobox for ad-hoc tooling.
 - **Containers** — rootless Podman, with `docker` and `docker compose` as stand-ins (no Docker daemon).
 - **An optional third session** — [Umbriel](https://github.com/noctalia-dev/umbriel) (a
