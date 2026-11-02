@@ -299,9 +299,9 @@ RUN dnf5 -y install podman-docker docker-compose \
  && dnf5 clean all
 COPY files/50-azir-compose.conf /etc/containers/containers.conf.d/50-azir-compose.conf
 
-# --- VMs: libvirt + virt-install, for ~/dev/agent-karen ---
+# --- VMs: libvirt + virt-install, for ~/dev/agent-vms ---
 # Local VMs for agentic coding: an Ubuntu cloud image as a shared backing store, a
-# qcow2 overlay and a cloud-init user-data file per VM. agent-karen runs them on
+# qcow2 overlay and a cloud-init user-data file per VM. agent-vms runs them on
 # libvirt's rootless qemu:///session with passt networking (passt is already here for
 # Podman), so no libvirt group or system daemon is needed; the system sockets this
 # package's presets enable just sit idle. xorriso: virt-install --cloud-init builds the
