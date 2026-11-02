@@ -2,7 +2,7 @@
 
 Azir is a personal Fedora **Silverblue**-based atomic desktop. It keeps the full GNOME
 desktop and adds **[niri](https://github.com/YaLTeR/niri)** — a scrollable-tiling Wayland
-compositor — driven by **[DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell)**
+compositor — driven by **[Dux Shell](https://github.com/duxlabs-dev/dux-shell)** (formerly DankMaterialShell, still `dms`)
 (bar, launcher, notifications, lock), with a
 [wlr-which-key](https://github.com/MaxVerevkin/wlr-which-key) leader menu. Pick **GNOME** or
 **Niri** at the login screen.
@@ -35,7 +35,7 @@ kitty, so rebind it in `~/.config/niri/local.kdl` (my dotfiles take care of this
 On top of everything Silverblue already provides (GNOME, GDM, GNOME Software, PipeWire,
 printing, firmware updates, keyring):
 
-- **A second desktop** — niri + DankMaterialShell, with niri built from git main (the
+- **A second desktop** — niri + Dux Shell, with niri built from git main (the
   pinned [niri-git COPR](https://copr.fedorainfracloud.org/coprs/yalter/niri-git/) build,
   not Fedora's release) for its bare-modifier binds, plus the Kitty terminal and
   xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
@@ -69,5 +69,5 @@ niri/DMS config, theming, shell config, and key remaps.
 ## Notes
 
 A personal project, not an official Fedora product — the author daily-drives it, but there's
-no support. niri and DankMaterialShell are independent upstream projects. Named for a nation
+no support. niri and Dux Shell are independent upstream projects. Named for a nation
 of Roshar.
