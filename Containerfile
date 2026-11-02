@@ -35,26 +35,6 @@ RUN dnf5 -y install git cargo rust pkgconf-pkg-config cairo-devel cairo-gobject-
  && cargo build --release --locked --manifest-path /src/Cargo.toml \
  && install -D -m 755 /src/target/release/wlr-which-key /out/usr/bin/wlr-which-key
 
-# --- Smile (emoji picker): built from source, pinned to an exact upstream commit ---
-# Fedora doesn't package it (no rpms/smile, nothing in COPR; checked 2026-11-02), and the
-# Flatpak was what dotfiles-azir ran until now: config-nixos runs it natively from nixpkgs.
-# A Python + GTK4/libadwaita app, so the build is mostly meson installing files; its
-# runtime (python3-gobject, python3-dbus, gtk4, libadwaita, wl-clipboard for copying on
-# Wayland) is installed in the app layer below. Keeps the it.mijorus.smile app-id, so
-# dotfiles-azir's floating window rule still matches. To bump: read the upstream changes
-# between the tags, then update both ARGs.
-FROM registry.fedoraproject.org/fedora:44 AS smile-build
-ARG SMILE_VERSION=2.12.3
-ARG SMILE_COMMIT=93fbe009b3f0b4bb0899aa9099ac555fdbca7b35
-RUN dnf5 -y install git meson gettext glib2-devel desktop-file-utils python3 gtk4 \
- && git clone --depth 1 --branch "$SMILE_VERSION" https://github.com/mijorus/smile /src \
- && actual="$(git -C /src rev-parse HEAD)" \
- && { [ "$actual" = "$SMILE_COMMIT" ] \
-      || { echo "ERROR: smile $SMILE_VERSION is $actual, expected pinned $SMILE_COMMIT" >&2; exit 1; }; } \
- && meson setup /build /src --prefix=/usr \
- && meson compile -C /build \
- && DESTDIR=/out meson install -C /build
-
 # Roshar — niri + DMS + quickshell + CLI toolkit subset + Flathub + distrobox + signing/trust,
 # all already baked and guarded there. GNOME + GDM stay (inherited, additive).
 FROM ${ROSHAR_IMAGE}
@@ -328,13 +308,6 @@ RUN dnf5 -y install starship yazi \
 # --- wlr-which-key artifact ---
 COPY --from=wlr-which-key-build /out/ /
 
-# --- Smile artifact (built above) ---
-# meson's post-install steps skip a DESTDIR install, so the schema is compiled here.
-COPY --from=smile-build /out/ /
-RUN dnf5 -y install python3-gobject python3-dbus gtk4 libadwaita wl-clipboard \
- && glib-compile-schemas /usr/share/glib-2.0/schemas \
- && dnf5 clean all
-
 # --- tmux: Azir's own status-bar colour (files/tmux.conf) ---
 COPY files/tmux.conf /etc/tmux.conf
 
@@ -348,11 +321,11 @@ RUN dnf5 -y install tailscale \
 # gnome-user-docs, yelp, fedora-third-party, open-vm-tools-desktop, virtualbox-guest-additions,
 # qemu-guest-agent, hyperv-daemons, b43-fwcutter, b43-openfwwf, iwlegacy-firmware, bluez-cups,
 # gamemode) — checked against `dnf5 repoquery --installed --leaves` on real hardware
-# originally, now just inherited. What's left is Azir-specific: Roshar keeps Firefox, Ptyxis,
-# and toolbox because it doesn't replace them with anything; Azir does (Chromium, kitty,
-# distrobox — installed above/below), so those come out here instead.
-#   firefox, firefox-langpacks — native Chromium (+ H.264) is the only browser Azir wants
-#     baked in; reinstall as a Flatpak if Firefox is ever needed again.
+# originally, now just inherited. What's left is Azir-specific: Roshar keeps Ptyxis and
+# toolbox because it doesn't replace them with anything; Azir does (kitty, distrobox —
+# installed above/below), so those come out here instead.
+#   Firefox stays: the native RPM from the Silverblue base, next to Chromium and Edge
+#     (stripped until 2026-11, when the Flathub copy stood in for it).
 #   ptyxis — Kitty is the terminal now (see the CLI toolkit section above).
 #   toolbox — redundant with distrobox (from Roshar's base), which Azir standardizes on.
 #   rpmfusion-free-release — this image's own rpmfusion repo file is deleted right after use,
@@ -363,13 +336,14 @@ RUN dnf5 -y install tailscale \
 # drivers, CJK ibus engines, brltty, hfsplus-tools, orca, and gnome-initial-setup — all either
 # in active use or judged not worth the risk.
 RUN dnf5 -y remove \
-      firefox firefox-langpacks ptyxis toolbox rpmfusion-free-release \
+      ptyxis toolbox rpmfusion-free-release \
  && dnf5 clean all
 
 # Guard: confirm the stripped-here packages are gone, the 13 Roshar already stripped are still
-# gone (defense-in-depth against Roshar's own build regressing upstream), and GNOME/GDM survived.
+# gone (defense-in-depth against Roshar's own build regressing upstream), and GNOME/GDM and
+# Firefox survived.
 RUN set -e; \
-    for pkg in firefox firefox-langpacks ptyxis toolbox rpmfusion-free-release; do \
+    for pkg in ptyxis toolbox rpmfusion-free-release; do \
       ! rpm -q "$pkg" >/dev/null 2>&1 || { echo "ERROR: $pkg still installed after strip" >&2; exit 1; }; \
     done; \
     for pkg in gnome-tour gnome-user-docs yelp fedora-third-party open-vm-tools-desktop \
@@ -380,7 +354,9 @@ RUN set -e; \
     rpm -q gnome-shell gdm xdg-desktop-portal-gnome gnome-keyring \
            pipewire wireplumber NetworkManager >/dev/null \
       || { echo "ERROR: the strip disturbed GNOME/plumbing (should only remove the named leaves)" >&2; exit 1; }; \
-    echo "lean-out OK: 5 stripped here + 13 inherited-absent verified, GNOME/GDM intact"
+    rpm -q firefox >/dev/null \
+      || { echo "ERROR: native Firefox is gone; Azir keeps the base's RPM" >&2; exit 1; }; \
+    echo "lean-out OK: 3 stripped here + 13 inherited-absent verified, GNOME/GDM and Firefox intact"
 
 # Guard for the whole app layer. First rpm -q group is installed by this layer; second is
 # inherited from ghcr.io/reinier/roshar, verified here as defense-in-depth.
@@ -416,13 +392,7 @@ RUN set -e; \
     command -v wlr-which-key >/dev/null || { echo "ERROR: wlr-which-key binary missing" >&2; exit 1; }; \
     ! ldd /usr/bin/wlr-which-key | grep -q 'not found' \
       || { echo "ERROR: wlr-which-key has unresolved libraries" >&2; ldd /usr/bin/wlr-which-key >&2; exit 1; }; \
-    test -x /usr/bin/smile || { echo "ERROR: smile launcher missing" >&2; exit 1; }; \
-    test -f /usr/share/applications/it.mijorus.smile.desktop || { echo "ERROR: smile desktop entry missing (the window rule matches its it.mijorus.smile app-id)" >&2; exit 1; }; \
-    test -f /usr/share/smile/smile.gresource || { echo "ERROR: smile gresource bundle missing" >&2; exit 1; }; \
-    gsettings --schemadir /usr/share/glib-2.0/schemas list-keys it.mijorus.smile >/dev/null \
-      || { echo "ERROR: smile gsettings schema not compiled" >&2; exit 1; }; \
-    python3 -c 'import gi, dbus; gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1"); from gi.repository import Gtk, Adw' \
-      || { echo "ERROR: smile's Python runtime (GTK4, libadwaita, dbus) is incomplete" >&2; exit 1; }; \
+    ! test -e /usr/bin/smile || { echo "ERROR: native smile is in the image; it's the Flathub app (dotfiles-azir)" >&2; exit 1; }; \
     grep -q '^set -g status-style "bg=#865e3c' /etc/tmux.conf || { echo "ERROR: Azir's tmux colour missing from /etc/tmux.conf" >&2; exit 1; }; \
     [ "$(readlink -f "$(command -v docker)")" = /usr/bin/docker ] && grep -q "exec /usr/bin/podman" /usr/bin/docker \
       || { echo "ERROR: docker is not podman-docker's podman wrapper" >&2; exit 1; }; \

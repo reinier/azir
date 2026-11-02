@@ -45,6 +45,27 @@ jobs:
           echo "::error::base pull failed after 5 attempts"
           exit 1
 
+      # jotta-cli is pinned (JOTTA_CLI_VERSION + sha256 in the Containerfile), so a new
+      # release never arrives on its own. Warn when Jottacloud's repo has a newer x86_64
+      # build, with the values to bump to. Never fails the build.
+      - name: Check for a jotta-cli update
+        continue-on-error: true
+        run: |
+          pinned="$(sed -n 's/^ARG JOTTA_CLI_VERSION=//p' Containerfile)"
+          base=https://repo.jotta.cloud/redhat
+          primary="$(curl -fsSL "$base/repodata/repomd.xml" | grep -o 'repodata/[^"]*primary\.xml\.gz' | head -1)"
+          latest="$(curl -fsSL "$base/$primary" | gunzip \
+            | grep -A12 '<name>jotta-cli</name>' | grep -A2 '<arch>x86_64</arch>' \
+            | grep -oE 'ver="[^"]*"|[0-9a-f]{64}' | sed 's/ver="\(.*\)"/\1/' | paste - - | sort -V | tail -1)"
+          read -r ver sha <<<"$latest"
+          if [ -z "$ver" ] || [ -z "$pinned" ]; then
+            echo "::warning title=jotta-cli check::could not read the versions (pinned '$pinned', repo '$ver')"
+          elif [ "$ver" != "$pinned" ] && [ "$(printf '%s\n%s\n' "$pinned" "$ver" | sort -V | tail -1)" = "$ver" ]; then
+            echo "::warning title=jotta-cli update::$ver is out (pinned: $pinned). Bump JOTTA_CLI_VERSION=$ver JOTTA_CLI_SHA256=$sha"
+          else
+            echo "jotta-cli $pinned is the newest in Jottacloud's repo"
+          fi
+
       - name: Build image
         run: podman build --platform=linux/amd64 -f Containerfile -t "${IMAGE_NAME}:latest" .
 

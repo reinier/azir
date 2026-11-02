@@ -39,9 +39,8 @@ printing, firmware updates, keyring):
   newest [niri-git COPR](https://copr.fedorainfracloud.org/coprs/yalter/niri-git/) build,
   not Fedora's release) for its bare-modifier binds, plus the Kitty terminal and
   xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
-- **Browsers** — Chromium with full media codecs, plus Microsoft Edge (Firefox is stripped — reinstall as a Flatpak if you want it back).
-- **Apps** — 1Password (+ CLI), VS Code, Tailscale, and the Smile emoji picker (built from
-  source; Fedora doesn't package it).
+- **Browsers** — Chromium with full media codecs, Microsoft Edge, and Silverblue's own Firefox.
+- **Apps** — 1Password (+ CLI), VS Code, Tailscale.
 - **Input** — wlr-which-key for the leader menu, opened by a bare Mod tap (a niri
   release bind; no keyd).
 - **Terminal toolkit** — fish, starship, eza, bat, yazi, tmux (with Azir's own brown status
