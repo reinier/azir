@@ -79,30 +79,31 @@ RUN set -e; \
       || { echo "ERROR: GNOME/plumbing missing from the roshar base" >&2; exit 1; }; \
     echo "inherited from roshar: niri $(rpm -q --qf '%{VERSION}' niri), dms $(rpm -q --qf '%{VERSION}' dms), quickshell $(rpm -q --qf '%{VERSION}' quickshell) [${qs_repo}]"
 
-# --- niri: git main from the yalter/niri-git COPR, pinned to one build ---
+# --- niri: git main from the yalter/niri-git COPR, newest build ---
 # Replaces Roshar's Fedora niri (Roshar itself stays on it). Azir needs two features that
 # aren't in a niri release yet: a modifier on its own as a bind trigger, and release-only
 # binds. Together they give dotfiles-azir's leader key, `Mod { release { ... } }`: a bare
 # Mod tap that fires only if nothing else was pressed, so every Mod+<key> bind still works.
 # That replaced keyd (config-nixos ebd1623, which runs niri main from niri's own flake).
 #
-# Pinned to one exact build, so niri only moves when NIRI_GIT_VERSION does. The git builds
-# version as 0.0.git.<count>.<sha>, LOWER than Fedora's release, so this is a downgrade as
-# far as rpm is concerned. No weak deps: niri recommends alacritty, fuzzel, mako, swaybg,
-# swayidle, swaylock and waybar, which DMS and GNOME already cover (as in Roshar). The repo
-# file is removed again, so the deployed system has no runtime COPR.
-#
-# The COPR prunes old builds (auto_prune; on 2026-11-02 only the four newest were left), so
-# a pinned build that has been pruned fails this step. Then bump: pick a newer build from
-# copr.fedorainfracloud.org/coprs/yalter/niri-git/builds/, check its niri commits, rebuild,
-# and `niri validate` dotfiles-azir's config against it.
-ARG NIRI_GIT_VERSION=0.0.git.3017.a8562a11-1.fc44
+# Unpinned, like DMS: every build takes the COPR's newest niri-git. A pin didn't hold: the
+# COPR prunes old builds within days (auto_prune; niri main builds almost daily), so the
+# daily CI build would fail once the pinned one was gone. The local build check before a
+# push (and `niri validate` of dotfiles-azir's config) catches a bad niri; scheduled CI
+# builds take whatever is newest. The git builds version as 0.0.git.<count>.<sha>, LOWER
+# than Fedora's release, so this is a downgrade as far as rpm is concerned, to the version
+# looked up first. No weak deps: niri recommends alacritty, fuzzel, mako, swaybg, swayidle,
+# swaylock and waybar, which DMS and GNOME already cover (as in Roshar). The repo file is
+# removed again, so the deployed system has no runtime COPR.
 COPY files/yalter-niri-git.repo /etc/yum.repos.d/yalter-niri-git.repo
-RUN dnf5 -y downgrade --setopt=install_weak_deps=False "niri-${NIRI_GIT_VERSION}" \
+RUN repo=copr:copr.fedorainfracloud.org:yalter:niri-git \
+ && ver="$(dnf5 -q repoquery --repo="$repo" --arch="$(uname -m)" --latest-limit=1 --qf '%{version}-%{release}\n' niri | head -1)" \
+ && case "$ver" in 0.0.git.*) ;; *) echo "ERROR: no niri-git build found in $repo (got '$ver')" >&2; exit 1;; esac \
+ && dnf5 -y downgrade --setopt=install_weak_deps=False "niri-$ver" \
  && rm -f /etc/yum.repos.d/yalter-niri-git.repo \
  && dnf5 clean all \
- && [ "$(rpm -q --qf '%{VERSION}-%{RELEASE}' niri)" = "$NIRI_GIT_VERSION" ] \
-      || { echo "ERROR: niri is $(rpm -q niri), expected the pinned niri-git $NIRI_GIT_VERSION" >&2; exit 1; } \
+ && [ "$(rpm -q --qf '%{VERSION}-%{RELEASE}' niri)" = "$ver" ] \
+      || { echo "ERROR: niri is $(rpm -q niri), expected niri-git $ver" >&2; exit 1; } \
  && test -f /usr/share/wayland-sessions/niri.desktop \
       || { echo "ERROR: niri GDM session file missing after the niri-git swap" >&2; exit 1; } \
  && extra="$(rpm -qa alacritty fuzzel mako swaybg swayidle swaylock waybar)" \

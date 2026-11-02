@@ -36,7 +36,7 @@ On top of everything Silverblue already provides (GNOME, GDM, GNOME Software, Pi
 printing, firmware updates, keyring):
 
 - **A second desktop** — niri + Dux Shell, with niri built from git main (the
-  pinned [niri-git COPR](https://copr.fedorainfracloud.org/coprs/yalter/niri-git/) build,
+  newest [niri-git COPR](https://copr.fedorainfracloud.org/coprs/yalter/niri-git/) build,
   not Fedora's release) for its bare-modifier binds, plus the Kitty terminal and
   xwayland-satellite for X11 apps. DMS handles multi-monitor (arrangement + display profiles).
 - **Browsers** — Chromium with full media codecs, plus Microsoft Edge (Firefox is stripped — reinstall as a Flatpak if you want it back).
