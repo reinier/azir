@@ -299,6 +299,16 @@ RUN dnf5 -y install podman-docker docker-compose \
  && dnf5 clean all
 COPY files/50-azir-compose.conf /etc/containers/containers.conf.d/50-azir-compose.conf
 
+# --- VMs: libvirt + virt-install, for ~/dev/agent-karen ---
+# Local VMs for agentic coding: an Ubuntu cloud image as a shared backing store, a
+# qcow2 overlay and a cloud-init user-data file per VM. agent-karen runs them on
+# libvirt's rootless qemu:///session with passt networking (passt is already here for
+# Podman), so no libvirt group or system daemon is needed; the system sockets this
+# package's presets enable just sit idle. xorriso: virt-install --cloud-init builds the
+# NoCloud seed ISO with it.
+RUN dnf5 -y install libvirt-daemon-kvm virt-install xorriso \
+ && dnf5 clean all
+
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # starship/yazi: neither is packaged by Fedora, and neither is in Roshar.
 # maple-fonts: Maple Mono NF, the leader menu's font (dotfiles-azir's wlr-which-key
@@ -371,11 +381,12 @@ RUN set -e; \
 RUN set -e; \
     rpm -q chromium 1password 1password-cli code microsoft-edge-stable jotta-cli \
            fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype kitty tmux gum podman-docker docker-compose \
+           libvirt-daemon-kvm virt-install xorriso \
            starship yazi maple-fonts tailscale \
            libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
     rpm -q --whatprovides heif-pixbuf-loader >/dev/null 2>&1 \
       || { echo "ERROR: nothing provides heif-pixbuf-loader — HEIF thumbnails will be blank" >&2; exit 1; }; \
-    rpm -q ripgrep fzf bat eza fastfetch btop git-core wl-clipboard ddcutil chezmoi distrobox >/dev/null; \
+    rpm -q ripgrep fzf bat eza fastfetch btop git-core wl-clipboard ddcutil chezmoi distrobox passt >/dev/null; \
     ! command -v lazygit >/dev/null || { echo "ERROR: lazygit is in the image — it belongs in the apps distrobox (dotfiles)" >&2; exit 1; }; \
     test -L /opt || { echo "ERROR: /opt is no longer a symlink — ostree layout broken" >&2; exit 1; }; \
     test -d /usr/lib/opt/1Password || { echo "ERROR: 1Password payload not relocated into /usr" >&2; exit 1; }; \
