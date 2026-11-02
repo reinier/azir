@@ -10,6 +10,11 @@
 # niri, so it only runs in the niri session, never leaking into GNOME.
 # The leader menu is wlr-which-key (built from source below), not DMS's dank-lader plugin.
 
+# The Roshar base. CI uses the default; a local build can point it at a locally built
+# Roshar instead: podman build --build-arg ROSHAR_IMAGE=localhost/roshar:local . (backlog
+# 0007). Declared before the first FROM so the Roshar FROM below can use it.
+ARG ROSHAR_IMAGE=ghcr.io/reinier/roshar:latest
+
 # --- keyd: built from source, pinned to an exact upstream commit ---
 # Commit, not just tag (backlog 0006): keyd runs as root and sees every keystroke, and upstream
 # is effectively one maintainer. A tag can be re-pointed upstream; the commit check below fails
@@ -83,7 +88,7 @@ RUN dnf5 -y install git gcc-c++ meson ninja-build pkgconf-pkg-config \
 
 # Roshar — niri + DMS + quickshell + CLI toolkit subset + Flathub + distrobox + signing/trust,
 # all already baked and guarded there. GNOME + GDM stay (inherited, additive).
-FROM ghcr.io/reinier/roshar:latest
+FROM ${ROSHAR_IMAGE}
 
 # Guard: confirm the inherited niri/DMS/quickshell core actually arrived intact before this
 # layer starts diverging from it (removing ptyxis, etc., below). Re-checks provenance rather
