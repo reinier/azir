@@ -35,6 +35,26 @@ RUN dnf5 -y install git cargo rust pkgconf-pkg-config cairo-devel cairo-gobject-
  && cargo build --release --locked --manifest-path /src/Cargo.toml \
  && install -D -m 755 /src/target/release/wlr-which-key /out/usr/bin/wlr-which-key
 
+# --- Smile (emoji picker): built from source, pinned to an exact upstream commit ---
+# Fedora doesn't package it (no rpms/smile, nothing in COPR; checked 2026-11-02), and the
+# Flatpak was what dotfiles-azir ran until now: config-nixos runs it natively from nixpkgs.
+# A Python + GTK4/libadwaita app, so the build is mostly meson installing files; its
+# runtime (python3-gobject, python3-dbus, gtk4, libadwaita, wl-clipboard for copying on
+# Wayland) is installed in the app layer below. Keeps the it.mijorus.smile app-id, so
+# dotfiles-azir's floating window rule still matches. To bump: read the upstream changes
+# between the tags, then update both ARGs.
+FROM registry.fedoraproject.org/fedora:44 AS smile-build
+ARG SMILE_VERSION=2.12.3
+ARG SMILE_COMMIT=93fbe009b3f0b4bb0899aa9099ac555fdbca7b35
+RUN dnf5 -y install git meson gettext glib2-devel desktop-file-utils python3 gtk4 \
+ && git clone --depth 1 --branch "$SMILE_VERSION" https://github.com/mijorus/smile /src \
+ && actual="$(git -C /src rev-parse HEAD)" \
+ && { [ "$actual" = "$SMILE_COMMIT" ] \
+      || { echo "ERROR: smile $SMILE_VERSION is $actual, expected pinned $SMILE_COMMIT" >&2; exit 1; }; } \
+ && meson setup /build /src --prefix=/usr \
+ && meson compile -C /build \
+ && DESTDIR=/out meson install -C /build
+
 # Roshar — niri + DMS + quickshell + CLI toolkit subset + Flathub + distrobox + signing/trust,
 # all already baked and guarded there. GNOME + GDM stay (inherited, additive).
 FROM ${ROSHAR_IMAGE}
@@ -261,14 +281,15 @@ RUN curl -fsSL -o /tmp/jotta-cli.rpm \
 # control (github.com/moverest/wl-kbptr) — official Fedora package, no COPR needed. Confirmed
 # niri implements all three protocols it needs (wlr-layer-shell, wlr-virtual-pointer,
 # wlr-screencopy — checked niri's own src/protocols/ directly, not just wl-kbptr's own
-# compatibility claim). Bound to Mod+Ctrl+F12 in dotfiles-azir's local/binds.kdl. wtype:
+# compatibility claim). Bound to Mod+F19 in dotfiles-azir's local/binds.kdl. wtype:
 # Wayland key-injection tool, needed by voxtype's (dictation, dotfiles-fetched AppImage —
 # see dotfiles-azir) "type" output mode; niche enough to voxtype specifically that it stays
 # here rather than in Roshar's own generic wl-clipboard-tier utilities. kitty: the
 # terminal (replaced ghostty, 2026-09-23) — Fedora packages it, so unlike ghostty it needs no
 # Terra and sits on this line instead of the one below. tmux: terminal multiplexer, mainly for
 # persistent sessions over SSH into Azir — host-native rather than in the apps distrobox so it
-# survives independently of any container; runs on tmux's own defaults (no dotfiles config).
+# survives independently of any container; only its status-bar colour is set
+# (files/tmux.conf → /etc/tmux.conf).
 # gum: the picker/confirm/pager UI for dotfiles-azir's rl-menu ("Azir Menu" — image update,
 # rollback, changelog, Flatpak/distrobox/dotfiles/firmware updates). Host-native, not in the
 # apps distrobox: the menu's whole job is updating the host and that distrobox, so it can't
@@ -305,6 +326,16 @@ RUN dnf5 -y install starship yazi \
 
 # --- wlr-which-key artifact ---
 COPY --from=wlr-which-key-build /out/ /
+
+# --- Smile artifact (built above) ---
+# meson's post-install steps skip a DESTDIR install, so the schema is compiled here.
+COPY --from=smile-build /out/ /
+RUN dnf5 -y install python3-gobject python3-dbus gtk4 libadwaita wl-clipboard \
+ && glib-compile-schemas /usr/share/glib-2.0/schemas \
+ && dnf5 clean all
+
+# --- tmux: Azir's own status-bar colour (files/tmux.conf) ---
+COPY files/tmux.conf /etc/tmux.conf
 
 # --- Tailscale ---
 RUN dnf5 -y install tailscale \
@@ -384,6 +415,14 @@ RUN set -e; \
     command -v wlr-which-key >/dev/null || { echo "ERROR: wlr-which-key binary missing" >&2; exit 1; }; \
     ! ldd /usr/bin/wlr-which-key | grep -q 'not found' \
       || { echo "ERROR: wlr-which-key has unresolved libraries" >&2; ldd /usr/bin/wlr-which-key >&2; exit 1; }; \
+    test -x /usr/bin/smile || { echo "ERROR: smile launcher missing" >&2; exit 1; }; \
+    test -f /usr/share/applications/it.mijorus.smile.desktop || { echo "ERROR: smile desktop entry missing (the window rule matches its it.mijorus.smile app-id)" >&2; exit 1; }; \
+    test -f /usr/share/smile/smile.gresource || { echo "ERROR: smile gresource bundle missing" >&2; exit 1; }; \
+    gsettings --schemadir /usr/share/glib-2.0/schemas list-keys it.mijorus.smile >/dev/null \
+      || { echo "ERROR: smile gsettings schema not compiled" >&2; exit 1; }; \
+    python3 -c 'import gi, dbus; gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1"); from gi.repository import Gtk, Adw' \
+      || { echo "ERROR: smile's Python runtime (GTK4, libadwaita, dbus) is incomplete" >&2; exit 1; }; \
+    grep -q '^set -g status-style "bg=#865e3c' /etc/tmux.conf || { echo "ERROR: Azir's tmux colour missing from /etc/tmux.conf" >&2; exit 1; }; \
     [ "$(readlink -f "$(command -v docker)")" = /usr/bin/docker ] && grep -q "exec /usr/bin/podman" /usr/bin/docker \
       || { echo "ERROR: docker is not podman-docker's podman wrapper" >&2; exit 1; }; \
     test -e /etc/containers/nodocker || { echo "ERROR: /etc/containers/nodocker missing — every docker call would print a notice" >&2; exit 1; }; \
