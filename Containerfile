@@ -301,7 +301,15 @@ COPY files/50-azir-compose.conf /etc/containers/containers.conf.d/50-azir-compos
 
 COPY files/terra.repo /etc/yum.repos.d/terra.repo
 # starship/yazi: neither is packaged by Fedora, and neither is in Roshar.
-RUN dnf5 -y install starship yazi \
+# maple-fonts: Maple Mono NF, the leader menu's font (dotfiles-azir's wlr-which-key
+# config); dotfiles used to download it as a pinned release. The package also ships the
+# NF-CN build (~300 MB of the 378 MB) and the plain non-NF family, which would show up
+# as extra families in font pickers; only NF is used, so both are removed.
+RUN dnf5 -y install starship yazi maple-fonts \
+ && find /usr/share/fonts/maple -name 'MapleMono-*.ttf' \
+      \( -name 'MapleMono-NF-CN-*' -o ! -name 'MapleMono-NF-*' \) -delete \
+ && test -f /usr/share/fonts/maple/MapleMono-NF-Regular.ttf \
+ && fc-cache -f /usr/share/fonts/maple \
  && rm -f /etc/yum.repos.d/terra.repo \
  && dnf5 clean all
 
@@ -363,7 +371,7 @@ RUN set -e; \
 RUN set -e; \
     rpm -q chromium 1password 1password-cli code microsoft-edge-stable jotta-cli \
            fish jq zip fuse-sshfs xdg-terminal-exec wl-kbptr wtype kitty tmux gum podman-docker docker-compose \
-           starship yazi tailscale \
+           starship yazi maple-fonts tailscale \
            libheif-freeworld ffmpegthumbnailer pipewire-codec-aptx >/dev/null; \
     rpm -q --whatprovides heif-pixbuf-loader >/dev/null 2>&1 \
       || { echo "ERROR: nothing provides heif-pixbuf-loader — HEIF thumbnails will be blank" >&2; exit 1; }; \
