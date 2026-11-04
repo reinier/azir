@@ -49,8 +49,8 @@ RUN set -e; \
       || { echo "ERROR: Fedora's DankMaterialShell is installed alongside COPR dms" >&2; exit 1; }; \
     qs_repo="$(dnf5 repoquery --installed --qf '%{from_repo}' quickshell | head -1)"; \
     case "$qs_repo" in \
-      *avengemedia*) ;; \
-      *) echo "ERROR: quickshell came from '${qs_repo}', not the avengemedia COPR." >&2; exit 1;; \
+      *duxlabs*|*avengemedia*) ;; \
+      *) echo "ERROR: quickshell came from '${qs_repo}', not the Dux Shell COPR (duxlabs, formerly avengemedia)." >&2; exit 1;; \
     esac; \
     test -f /usr/share/wayland-sessions/niri.desktop \
       || { echo "ERROR: niri GDM session file missing" >&2; exit 1; }; \
