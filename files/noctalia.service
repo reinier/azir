@@ -1,0 +1,17 @@
+# Noctalia, the shell for the optional Umbriel session (see the Containerfile's Umbriel
+# section). Fedora's noctalia package ships no unit; this mirrors nixpkgs' programs.noctalia
+# one. Tied to umbriel-session.target (shipped by Umbriel) and pulled in by the
+# umbriel-session.target.wants/ symlink next to this file, so it starts only in an
+# Umbriel session, never next to DMS under niri or in GNOME.
+[Unit]
+Description=Noctalia Wayland desktop shell
+Documentation=https://docs.noctalia.dev/v5/
+PartOf=umbriel-session.target
+After=umbriel-session.target
+
+[Service]
+ExecStart=/usr/bin/noctalia
+Restart=on-failure
+
+[Install]
+WantedBy=umbriel-session.target

@@ -46,6 +46,10 @@ printing, firmware updates, keyring):
 - **Terminal toolkit** — fish, starship, eza, bat, yazi, tmux (with Azir's own brown status
   bar); distrobox for ad-hoc tooling.
 - **Containers** — rootless Podman, with `docker` and `docker compose` as stand-ins (no Docker daemon).
+- **An optional third session** — [Umbriel](https://github.com/noctalia-dev/umbriel) (a
+  scrolling wlroots compositor) with the [Noctalia](https://github.com/noctalia-dev/noctalia)
+  shell, to try out next to niri + DMS. Pick **Umbriel** at the login screen; nothing of it
+  runs otherwise.
 
 ## Updating
 
