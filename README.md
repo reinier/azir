@@ -49,7 +49,9 @@ printing, firmware updates, keyring):
 - **An optional third session** — [Umbriel](https://github.com/noctalia-dev/umbriel) (a
   scrolling wlroots compositor) with the [Noctalia](https://github.com/noctalia-dev/noctalia)
   shell, to try out next to niri + DMS. Pick **Umbriel** at the login screen; nothing of it
-  runs otherwise.
+  runs otherwise. Umbriel is built from upstream `main` on every image build (no releases,
+  no Fedora package yet), so it can break; GNOME and niri stay as fallbacks.
+  `/usr/share/umbriel/azir-built-from` says which commits are in the image.
 
 ## Updating
 

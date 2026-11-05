@@ -35,32 +35,35 @@ RUN dnf5 -y install git cargo rust pkgconf-pkg-config cairo-devel cairo-gobject-
  && cargo build --release --locked --manifest-path /src/Cargo.toml \
  && install -D -m 755 /src/target/release/wlr-which-key /out/usr/bin/wlr-which-key
 
-# --- Umbriel + its portal: built from source, pinned to exact upstream commits ---
-# The optional "Umbriel" login session (dotfiles-azir backlog / config-nixos backlog 0039):
-# Umbriel is noctalia-dev's scrolling wlroots compositor, paired with the Noctalia shell
-# (from Fedora's own repos, below). niri + DMS stays the default; this only adds a session
-# to pick at the login screen. Neither repo has releases and Fedora packages neither, so both
-# are built at the same commits config-nixos uses (nixpkgs-unstable's umbriel
-# 0-unstable-2026-09-25, xdg-desktop-portal-umbriel 0-unstable-2026-09-24). The portal
-# provides Screencast/Screenshot; its GTK4 share picker is built in, as on NixOS.
+# --- Umbriel + its portal: built from source, upstream main (unpinned) ---
+# The optional "Umbriel" login session (config-nixos backlog 0039): Umbriel is noctalia-dev's
+# scrolling wlroots compositor, paired with the Noctalia shell (from Fedora's own repos,
+# below). niri + DMS stays the default; this only adds a session to pick at the login screen.
+# The portal provides Screencast/Screenshot; its GTK4 share picker is built in, as on NixOS.
+# Unpinned, like niri-git and DMS: neither repo has releases and Fedora packages neither, so
+# every build takes upstream main as it is that day. An upstream break shows up as a failed
+# build or a broken Umbriel session; GNOME and niri + DMS are untouched either way. The
+# commits that went in are recorded in /usr/share/umbriel/azir-built-from. To hold a known
+# good state, pass a commit: --build-arg UMBRIEL_REF=<sha> (same for UMBRIEL_PORTAL_REF).
+# Local podman builds may reuse a cached layer here; --no-cache takes today's main.
+# Once Fedora packages Umbriel, this stage goes and the package replaces it.
 # Umbriel's umbrielfx compiles against wlroots' private struct layouts, so the exact wlroots
-# version it was built against is recorded and the app guard requires the image's wlroots to
-# match it. To bump: pick new commits, rebuild, re-check dotfiles-azir's Umbriel config.
+# version it was built against is recorded and the guard requires the image's wlroots to
+# match it.
 FROM registry.fedoraproject.org/fedora:44 AS umbriel-build
-ARG UMBRIEL_COMMIT=834607334f9bb13a22b1e2a53bf47cfbfa5be7dd
-ARG UMBRIEL_PORTAL_COMMIT=ee380d66984a45310ef48a283ad806ebab752788
+ARG UMBRIEL_REF=main
+ARG UMBRIEL_PORTAL_REF=main
 RUN dnf5 -y install git gcc-c++ meson ninja-build pkgconf-pkg-config \
       wayland-devel wayland-protocols-devel wlroots-devel libxkbcommon-devel libinput-devel \
       pixman-devel libdrm-devel libdisplay-info-devel systemd-devel libxcb-devel xcb-util-wm-devel \
       cairo-devel pango-devel tomlplusplus-devel json-devel lcms2-devel jemalloc-devel \
       mesa-libEGL-devel mesa-libGLES-devel mesa-libgbm-devel \
-      sdbus-cpp-devel pipewire-devel gtk4-devel \
+      sdbus-cpp-devel pipewire-devel gtk4-devel libei-devel libeis-devel \
  && fetch() { git init -q "$2" && git -C "$2" fetch -q --depth 1 "$1" "$3" \
       && git -C "$2" checkout -q FETCH_HEAD \
-      && [ "$(git -C "$2" rev-parse HEAD)" = "$3" ] \
-      || { echo "ERROR: could not check out $1 at pinned $3" >&2; return 1; }; } \
- && fetch https://github.com/noctalia-dev/umbriel /src/umbriel "$UMBRIEL_COMMIT" \
- && fetch https://github.com/noctalia-dev/xdg-desktop-portal-umbriel /src/portal "$UMBRIEL_PORTAL_COMMIT" \
+      || { echo "ERROR: could not check out $1 at $3" >&2; return 1; }; } \
+ && fetch https://github.com/noctalia-dev/umbriel /src/umbriel "$UMBRIEL_REF" \
+ && fetch https://github.com/noctalia-dev/xdg-desktop-portal-umbriel /src/portal "$UMBRIEL_PORTAL_REF" \
  && meson setup /build/umbriel /src/umbriel --buildtype=release --prefix=/usr -Dtests=disabled \
  && meson compile -C /build/umbriel \
  && DESTDIR=/out meson install -C /build/umbriel \
@@ -68,7 +71,10 @@ RUN dnf5 -y install git gcc-c++ meson ninja-build pkgconf-pkg-config \
  && meson compile -C /build/portal \
  && DESTDIR=/out meson install -C /build/portal \
  && mkdir -p /out/usr/share/umbriel \
- && rpm -q --qf '%{VERSION}-%{RELEASE}\n' wlroots > /out/usr/share/umbriel/azir-built-against-wlroots
+ && rpm -q --qf '%{VERSION}-%{RELEASE}\n' wlroots > /out/usr/share/umbriel/azir-built-against-wlroots \
+ && printf 'umbriel %s\nxdg-desktop-portal-umbriel %s\n' \
+      "$(git -C /src/umbriel rev-parse HEAD)" "$(git -C /src/portal rev-parse HEAD)" \
+      > /out/usr/share/umbriel/azir-built-from
 
 # Roshar — niri + DMS + quickshell + CLI toolkit subset + Flathub + distrobox + signing/trust,
 # all already baked and guarded there. GNOME + GDM stay (inherited, additive).
@@ -385,7 +391,7 @@ COPY files/umbriel-portals.conf /usr/share/xdg-desktop-portal/umbriel-portals.co
 COPY files/noctalia.service /usr/lib/systemd/user/noctalia.service
 RUN dnf5 -y install noctalia python3-tomlkit \
       wlroots tomlplusplus jemalloc lcms2 libinput pixman libdrm mesa-libgbm libglvnd-egl \
-      libglvnd-gles cairo pango gtk4 pipewire-libs libxkbcommon xorg-x11-server-Xwayland \
+      libglvnd-gles cairo pango gtk4 pipewire-libs libxkbcommon libei libeis xorg-x11-server-Xwayland \
  && mkdir -p /usr/lib/systemd/user/umbriel-session.target.wants \
  && ln -sf ../noctalia.service /usr/lib/systemd/user/umbriel-session.target.wants/noctalia.service \
  && dnf5 clean all
@@ -411,7 +417,8 @@ RUN set -e; \
       || { echo "ERROR: umbriel-portals.conf lost its Secret → gnome-keyring routing" >&2; exit 1; }; \
     test -f /usr/share/xdg-desktop-portal/portals/gnome-keyring.portal || { echo "ERROR: gnome-keyring's portal is missing" >&2; exit 1; }; \
     command -v Xwayland >/dev/null || { echo "ERROR: Xwayland missing (Umbriel's X11 support)" >&2; exit 1; }; \
-    echo "Umbriel session OK: umbriel built against wlroots $built, noctalia $(rpm -q --qf '%{VERSION}' noctalia)"
+    grep -qE '^umbriel [0-9a-f]{40}$' /usr/share/umbriel/azir-built-from || { echo "ERROR: azir-built-from doesn't record Umbriel's commit" >&2; exit 1; }; \
+    echo "Umbriel session OK: umbriel $(awk '$1=="umbriel"{print substr($2,1,12)}' /usr/share/umbriel/azir-built-from) built against wlroots $built, noctalia $(rpm -q --qf '%{VERSION}' noctalia)"
 
 # --- Tailscale ---
 RUN dnf5 -y install tailscale \
