@@ -16,7 +16,7 @@
 ARG ROSHAR_IMAGE=ghcr.io/reinier/roshar:latest
 
 # --- wlr-which-key: built from source, pinned to an exact upstream commit ---
-# The leader menu (dotfiles-azir: rl-which-key on a bare Mod tap or F19). Fedora doesn't
+# The leader menu (dotfiles-azir: rl-which-key on a bare Ctrl tap or F19). Fedora doesn't
 # package it. Pinned to an exact commit, and to the same version as config-nixos's
 # wlr-which-key.nix, so the menu only changes when bumped on purpose: 1.2.0 already changed the
 # config format once. `--locked` builds against upstream's own Cargo.lock. Its runtime libraries
@@ -103,8 +103,8 @@ RUN set -e; \
 # --- niri: git main from the yalter/niri-git COPR, newest build ---
 # Replaces Roshar's Fedora niri (Roshar itself stays on it). Azir needs two features that
 # aren't in a niri release yet: a modifier on its own as a bind trigger, and release-only
-# binds. Together they give dotfiles-azir's leader key, `Mod { release { ... } }`: a bare
-# Mod tap that fires only if nothing else was pressed, so every Mod+<key> bind still works.
+# binds. Together they give dotfiles-azir's leader key, `Ctrl { release { ... } }`: a bare
+# Ctrl tap that fires only if nothing else was pressed, so every Ctrl+<key> still works.
 # That replaced keyd (config-nixos ebd1623, which runs niri main from niri's own flake).
 #
 # Unpinned, like DMS: every build takes the COPR's newest niri-git. A pin didn't hold: the
